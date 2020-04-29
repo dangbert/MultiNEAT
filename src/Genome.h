@@ -103,6 +103,9 @@ namespace NEAT
         // The depth of the network
         unsigned int m_Depth;
 
+        // recursion limit on network depth calculations
+        unsigned int m_NeuronRecursionLimit;
+
         // how many individuals this genome should spawn
         double m_OffspringAmount;
 
@@ -265,6 +268,10 @@ namespace NEAT
         unsigned int GetDepth() const;
 
         void SetDepth(unsigned int a_d);
+
+        unsigned int GetNeuronRecursionLimit() const;
+
+        void SetNeuronRecursionLimit(unsigned int a_l);
 
         // Returns true if there is any dead end in the network
         bool HasDeadEnds() const;

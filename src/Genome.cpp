@@ -66,6 +66,7 @@ namespace NEAT
         m_ID = 0;
         m_Fitness = -std::numeric_limits<double>::infinity();
         m_Depth = 0;
+        m_NeuronRecursionLimit = 16384;
         m_LinkGenes.clear();
         m_NeuronGenes.clear();
         m_NumInputs = 0;
@@ -84,6 +85,7 @@ namespace NEAT
     {
         m_ID = a_G.m_ID;
         m_Depth = a_G.m_Depth;
+        m_NeuronRecursionLimit = a_G.m_NeuronRecursionLimit;
         m_NeuronGenes = a_G.m_NeuronGenes;
         m_LinkGenes = a_G.m_LinkGenes;
         m_GenomeGene = a_G.m_GenomeGene;
@@ -109,6 +111,7 @@ namespace NEAT
         {
             m_ID = a_G.m_ID;
             m_Depth = a_G.m_Depth;
+            m_NeuronRecursionLimit = a_G.m_NeuronRecursionLimit;
             m_NeuronGenes = a_G.m_NeuronGenes;
             m_LinkGenes = a_G.m_LinkGenes;
             m_GenomeGene = a_G.m_GenomeGene;
@@ -239,6 +242,7 @@ namespace NEAT
         m_AdjustedFitness = 0.0;
         m_OffspringAmount = 0.0;
         m_Depth = 0;
+        m_NeuronRecursionLimit = a_Parameters.NeuronRecursionLimit;
         m_PhenotypeBehavior = NULL;
         
         m_initial_num_neurons = NumNeurons();
@@ -489,6 +493,7 @@ namespace NEAT
         m_AdjustedFitness = 0.0;
         m_OffspringAmount = 0.0;
         m_Depth = 0;
+        m_NeuronRecursionLimit = a_Parameters.NeuronRecursionLimit;
         m_PhenotypeBehavior = NULL;
     
         m_initial_num_neurons = NumNeurons();
@@ -503,6 +508,16 @@ namespace NEAT
     unsigned int Genome::GetDepth() const
     {
         return m_Depth;
+    }
+
+    void Genome::SetNeuronRecursionLimit(unsigned int a_l)
+    {
+        m_NeuronRecursionLimit = a_l;
+    }
+
+    unsigned int Genome::GetNeuronRecursionLimit() const
+    {
+        return m_NeuronRecursionLimit;
     }
 
     void Genome::SetID(unsigned int a_id)
@@ -3190,11 +3205,11 @@ namespace NEAT
         unsigned int t_current_depth;
         unsigned int t_max_depth = a_Depth;
 
-        if (a_Depth > 16384)
+        if (a_Depth > m_NeuronRecursionLimit)
         {
             // oops! a possible loop in the network!
             // DBG(" ERROR! Trying to get the depth of a looped network!");
-            return 16384;
+            return m_NeuronRecursionLimit;
         }
 
         // Base case

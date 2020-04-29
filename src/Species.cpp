@@ -518,6 +518,7 @@ namespace NEAT
             // We have a new offspring now
             // give the offspring a new ID
             t_baby.SetID(a_Pop.GetNextGenomeID());
+            t_baby.SetNeuronRecursionLimit(a_Parameters.NeuronRecursionLimit);
             a_Pop.IncrementNextGenomeID();
 
             // sort the baby's genes

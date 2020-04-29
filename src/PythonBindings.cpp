@@ -579,7 +579,7 @@ BOOST_PYTHON_MODULE(_multineat)
             .def_readwrite("GeometrySeed", &Parameters::GeometrySeed)
             .def_readwrite("TournamentSize", &Parameters::TournamentSize)
             .def_readwrite("EliteFraction", &Parameters::EliteFraction)
-
+            .def_readwrite("NeuronRecursionLimit", &Parameters::NeuronRecursionLimit)
 			.def_pickle(Parameters_pickle_suite())
         ;
 

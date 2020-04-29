@@ -114,6 +114,7 @@ Population::Population(const Genome& a_Seed, const Parameters& a_Parameters,
             }
         }
 
+        m_Genomes[i].SetNeuronRecursionLimit(a_Parameters.NeuronRecursionLimit);
         //m_Genomes[i].CalculateDepth();
     }
     // Speciate

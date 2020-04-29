@@ -173,6 +173,8 @@ public:
     // Fraction of individuals to be copied unchanged
     double EliteFraction;
 
+    // Recursion limit for network depth calculations
+    unsigned int NeuronRecursionLimit;
 
 
     ///////////////////////////////////
