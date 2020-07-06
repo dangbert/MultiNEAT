@@ -102,7 +102,7 @@ class XorTest(unittest.TestCase):
         def getbest(i, seed=0):
             g = NEAT.Genome(0, 3, 0, 1, False, NEAT.ActivationFunction.UNSIGNED_SIGMOID,
                             NEAT.ActivationFunction.UNSIGNED_SIGMOID, 0, params, 0)
-            pop = NEAT.Population(g, params, True, 1.0, i)
+            pop = NEAT.Population(g, params, True, 1.0, seed)
             pop.RNG.Seed(seed)
 
             generations = 0

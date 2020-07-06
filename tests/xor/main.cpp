@@ -116,7 +116,7 @@ BOOST_AUTO_TEST_CASE(multineat_xor)
     params.MutateNeuronTraitsProb = 0.0;
     params.MutateLinkTraitsProb = 0.0;
 
-    Genome s(0, 3, 0, 1,
+    Genome starting_genome(0, 3, 0, 1,
              false,
              UNSIGNED_SIGMOID,
              UNSIGNED_SIGMOID,
@@ -125,7 +125,8 @@ BOOST_AUTO_TEST_CASE(multineat_xor)
              0);
 
     int seed = 0; // time(nullptr)
-    Population pop(s, params, true, 1.0, seed);
+    Population pop(starting_genome, params, true, 1.0, seed);
+    pop.m_RNG.Seed(seed);
 
     double bestf = -std::numeric_limits<double>::infinity();
     for(int k=1; k<=21; k++)

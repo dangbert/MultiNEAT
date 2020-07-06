@@ -190,16 +190,37 @@ if(GENERATE_PYTHON_BINDINGS)
         message(FATAL_ERROR "Boost python numpy 3 not found")
     endif()
 
+    set(PYTHON_SOURCE_FILES src/python/PythonBindings.cpp
+            src/python/NeuronType.cpp
+            src/python/ActivationFunction.cpp
+            src/python/SearchMode.cpp
+            src/python/RNG.cpp
+            src/python/Connection.cpp
+            src/python/Neuron.cpp
+            src/python/NeuralNetwork.cpp
+            src/python/LinkGene.cpp
+            src/python/NeuronGene.cpp
+            src/python/Genome.cpp
+            src/python/Species.cpp
+            src/python/Substrate.cpp
+            src/python/PhenotypeBehavior.cpp
+            src/python/Population.cpp
+            src/python/Innovation.cpp
+            src/python/InnovationDatabase.cpp
+            src/python/Parameters.cpp
+            src/python/Lists.cpp
+    )
+
     if(CMAKE_LEGACY_PYTHON)
         python_add_module(_multineat
                 ${SOURCE_FILES}
-                src/PythonBindings.cpp
+                ${PYTHON_SOURCE_FILES}
                 )
     else()
         Python3_add_library(_multineat
                 MODULE
                 ${SOURCE_FILES}
-                src/PythonBindings.cpp
+                ${PYTHON_SOURCE_FILES}
                 )
     endif()
 
