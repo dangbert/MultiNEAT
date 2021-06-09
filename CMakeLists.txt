@@ -130,9 +130,13 @@ if(GENERATE_PYTHON_BINDINGS)
         set(CMAKE_LEGACY_PYTHON ON)
     endif()
 
+    if (DEFINED PYTHON_VERSION_STRING)
+        set(PYTHON_VERSION "${PYTHON_VERSION_STRING}" "EXACT")
+    endif()
+
     if (CMAKE_LEGACY_PYTHON)
-        find_package(PythonLibs REQUIRED)
-        message("found python ${PYTHONLIBS_VERSION_STRING} [pythonlibs]")
+        find_package(PythonLibs ${PYTHON_VERSION} REQUIRED)
+        message("[legacy] found python ${PYTHONLIBS_VERSION_STRING} [pythonlibs]")
         string(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)"
                 "\\1" 3
                 ${PYTHONLIBS_VERSION_STRING})
@@ -143,7 +147,7 @@ if(GENERATE_PYTHON_BINDINGS)
                 "-py\\1\\2" PY3x
                 ${PYTHONLIBS_VERSION_STRING})
     else()
-        find_package(Python3
+        find_package(Python3 ${PYTHON_VERSION}
             COMPONENTS
                 Development
             REQUIRED
@@ -158,37 +162,57 @@ if(GENERATE_PYTHON_BINDINGS)
 
     if (SKBUILD)
         find_package(PythonExtensions REQUIRED)
+        set(Boost_INTERNAL TRUE)
     endif()
 
     find_package(Boost COMPONENTS
-            python${3}
             python${3x}
             python${PY3x}
-            numpy${3}
             numpy${3x}
             numpy${PY3x}
             QUIET
             )
 
-    if (Boost_python${3}_FOUND OR Boost_PYTHON${3}_FOUND)
-        message("Boost python${3} found")
-    elseif(Boost_python${3x}_FOUND OR Boost_PYTHON${3x}_FOUND)
+    if(Boost_python${3x}_FOUND OR Boost_PYTHON${3x}_FOUND)
         message("Boost python${3x} found")
     elseif(Boost_python${PY3x}_FOUND OR Boost_PYTHON${PY3x}_FOUND)
         message("Boost python${PY3x} found")
     else()
-        message(FATAL_ERROR "Boost python3 not found")
+        set(Boost_INTERNAL TRUE)
+        message(WARNING "Boost python${3x} not found")
     endif()
 
-    if (Boost_numpy${3}_FOUND OR Boost_NUMPY${3}_FOUND)
-        message("Boost python-numpy${3} found")
-    elseif(Boost_numpy${3x}_FOUND OR Boost_NUMPY${3x}_FOUND)
+    if(Boost_numpy${3x}_FOUND OR Boost_NUMPY${3x}_FOUND)
         message("Boost python-numpy${3x} found")
     elseif(Boost_numpy${PY3x}_FOUND OR Boost_NUMPY${PY3x}_FOUND)
         message("Boost python-numpy${PY3x} found")
     else()
-        message(FATAL_ERROR "Boost python numpy 3 not found")
+        set(Boost_INTERNAL TRUE)
+        message(WARNING "Boost python numpy ${3x} not found")
     endif()
+
+    if (Boost_INTERNAL)
+        message(WARNING "Attempting to compile boost as a static library")
+        set(Boost_PYTHON${3}_FOUND False)
+        set(Boost_PYTHON${3x}_FOUND False)
+        set(Boost_PYTHON${PY3x}_FOUND False)
+        set(Boost_NUMPY${3}_FOUND False)
+        set(Boost_NUMPY${3x}_FOUND False)
+        set(Boost_NUMPY${PY3x}_FOUND False)
+        set(Boost_python${3}_FOUND False)
+        set(Boost_python${3x}_FOUND False)
+        set(Boost_python${PY3x}_FOUND False)
+        set(Boost_numpy${3}_FOUND False)
+        set(Boost_numpy${3x}_FOUND False)
+        set(Boost_numpy${PY3x}_FOUND False)
+
+        # Add tasks subprojects
+        if (SKBUILD)
+            set(Python_NumPy_INCLUDE_DIR "${PYTHON_SITE_PACKAGES_DIR}/numpy/core/include/")
+        endif()
+        add_subdirectory(${CMAKE_SOURCE_DIR}/thirdparty)
+    endif()
+
 
     set(PYTHON_SOURCE_FILES src/python/PythonBindings.cpp
             src/python/NeuronType.cpp
@@ -242,7 +266,8 @@ if(GENERATE_PYTHON_BINDINGS)
             Boost::system
             Boost::filesystem
             Boost::serialization
-          # Python3::Python # already included by default
+
+            # Python3::Python # already included by default
             $<$<BOOL:${Boost_PYTHON${3}_FOUND}>:${Boost_PYTHON${3}_LIBRARY}>
             $<$<BOOL:${Boost_PYTHON${3x}_FOUND}>:${Boost_PYTHON${3x}_LIBRARY}>
             $<$<BOOL:${Boost_PYTHON${PY3x}_FOUND}>:${Boost_PYTHON${PY3x}_LIBRARY}>
@@ -257,11 +282,16 @@ if(GENERATE_PYTHON_BINDINGS)
             $<$<BOOL:${Boost_numpy${3}_FOUND}>:${Boost_NUMPY${3}_LIBRARY}>
             $<$<BOOL:${Boost_numpy${3x}_FOUND}>:${Boost_NUMPY${3x}_LIBRARY}>
             $<$<BOOL:${Boost_numpy${PY3x}_FOUND}>:${Boost_NUMPY${PY3x}_LIBRARY}>
+
+            # Internal Boost python
+            $<$<BOOL:${Boost_INTERNAL}>:Boost::python${3x}>
+            $<$<BOOL:${Boost_INTERNAL}>:Boost::numpy${3x}>
             )
 
     target_link_libraries(_multineat PUBLIC
             $<$<BOOL:${CMAKE_LEGACY_PYTHON}>:${PYTHON_LIBRARIES}>
-            ${MULTINEAT_PYTHON_LIBRARIES})
+            ${MULTINEAT_PYTHON_LIBRARIES}
+            )
 
     if (SKBUILD)
         set(site_packages "${PYTHON_RELATIVE_SITE_PACKAGES_DIR}")

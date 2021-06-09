@@ -1,0 +1,3 @@
+[submodule "thirdparty/boost-python"]
+	path = thirdparty/boost-python
+	url = https://github.com/boostorg/python
