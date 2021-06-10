@@ -165,34 +165,36 @@ if(GENERATE_PYTHON_BINDINGS)
         set(Boost_INTERNAL TRUE)
     endif()
 
-    find_package(Boost COMPONENTS
-            python${3x}
-            python${PY3x}
-            numpy${3x}
-            numpy${PY3x}
-            QUIET
-            )
+    if (NOT ${Boost_INTERNAL})
+        find_package(Boost COMPONENTS
+                python${3x}
+                python${PY3x}
+                numpy${3x}
+                numpy${PY3x}
+                QUIET
+                )
 
-    if(Boost_python${3x}_FOUND OR Boost_PYTHON${3x}_FOUND)
-        message("Boost python${3x} found")
-    elseif(Boost_python${PY3x}_FOUND OR Boost_PYTHON${PY3x}_FOUND)
-        message("Boost python${PY3x} found")
-    else()
-        set(Boost_INTERNAL TRUE)
-        message(WARNING "Boost python${3x} not found")
+        if(Boost_python${3x}_FOUND OR Boost_PYTHON${3x}_FOUND)
+            message("Boost python${3x} found")
+        elseif(Boost_python${PY3x}_FOUND OR Boost_PYTHON${PY3x}_FOUND)
+            message("Boost python${PY3x} found")
+        else()
+            set(Boost_INTERNAL TRUE)
+            message(WARNING "Boost python${3x} not found")
+        endif()
+
+        if(Boost_numpy${3x}_FOUND OR Boost_NUMPY${3x}_FOUND)
+            message("Boost python-numpy${3x} found")
+        elseif(Boost_numpy${PY3x}_FOUND OR Boost_NUMPY${PY3x}_FOUND)
+            message("Boost python-numpy${PY3x} found")
+        else()
+            set(Boost_INTERNAL TRUE)
+            message(WARNING "Boost python numpy ${3x} not found")
+        endif()
     endif()
 
-    if(Boost_numpy${3x}_FOUND OR Boost_NUMPY${3x}_FOUND)
-        message("Boost python-numpy${3x} found")
-    elseif(Boost_numpy${PY3x}_FOUND OR Boost_NUMPY${PY3x}_FOUND)
-        message("Boost python-numpy${PY3x} found")
-    else()
-        set(Boost_INTERNAL TRUE)
-        message(WARNING "Boost python numpy ${3x} not found")
-    endif()
-
-    if (Boost_INTERNAL)
-        message(WARNING "Attempting to compile boost as a static library")
+    if (${Boost_INTERNAL})
+        message("Attempting to compile boost as a static library")
         set(Boost_PYTHON${3}_FOUND False)
         set(Boost_PYTHON${3x}_FOUND False)
         set(Boost_PYTHON${PY3x}_FOUND False)
@@ -208,7 +210,19 @@ if(GENERATE_PYTHON_BINDINGS)
 
         # Add tasks subprojects
         if (SKBUILD)
-            set(Python_NumPy_INCLUDE_DIR "${PYTHON_SITE_PACKAGES_DIR}/numpy/core/include/")
+            string(REGEX REPLACE "/lib/" "/lib64/"
+                PYTHON_SITE_PACKAGES_DIR_FIXED "${PYTHON_SITE_PACKAGES_DIR}")
+            find_file(NUMPY "numpyconfig.h"
+                PATHS "${PYTHON_SITE_PACKAGES_DIR_FIXED}" "${PYTHON_SITE_PACKAGES_DIR}"
+                PATH_SUFFIXES "/numpy/core/include/numpy/")
+            if (${NUMPY} STREQUAL "NUMPY-NOTFOUND")
+                message(FATAL_ERROR "Numpy not found, searched in \"${PYTHON_SITE_PACKAGES_DIR_FIXED}\" and \"${PYTHON_SITE_PACKAGES_DIR}\"")
+            else()
+                message("Numpy found: ${NUMPY}")
+            endif()
+            get_filename_component(NUMPY_INCLUDE_DIR "${NUMPY}" DIRECTORY)
+
+            set(Python_NumPy_INCLUDE_DIR "${NUMPY_INCLUDE_DIR}/../")
         endif()
         add_subdirectory(${CMAKE_SOURCE_DIR}/thirdparty)
     endif()
