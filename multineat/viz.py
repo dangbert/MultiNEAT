@@ -35,8 +35,6 @@ try:
     import cv2
     cvnumpy_installed = True
 except:
-    print ('Tip: install the OpenCV computer vision library (2.0+) with '
-           'Python bindings to get convenient neural network visualization to NumPy arrays')
     cvnumpy_installed = False
 
 try:
