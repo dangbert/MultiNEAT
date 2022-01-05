@@ -7,21 +7,24 @@ jobs:
       - checkout
       - run:
           name: Installing CMAKE
-          command: sudo apt install -y cmake libboost-python-dev libboost-numpy-dev libboost-all-dev
+          command: sudo apt install -y cmake libboost-python-dev libboost-numpy-dev libboost-all-dev python3-numpy
       - run:
           name: Create Virtual Environment
           command: |
             python3 -m venv venv
             source venv/bin/activate
-      - run:
+     - run:
           name: Creating Build Files
           command: cmake -H. -Bbuild -DENABLE_TESTING=1 -DGENERATE_PYTHON_BINDINGS=1
-      - run:
+     - run:
           name: Compiling
-          command: cmake --build build
-      - run:
+          command: cmake --build build -j2
+     - run:
           name: Installing
-          command: sudo cmake --install build
+          command: cd build && sudo make install
+      - run:
+          name: Install requirements
+          command: pip install -r requirements.txt
       - run:
           name: PIP installing
           command: pip install .
