@@ -21,6 +21,11 @@ GNU Lesser General Public License v3.0
 
 ## Building and installation instructions
 
+Don't forget to update submodules.
+  ```bash
+  $ git submodule update --init --recursive
+  ```
+
 #### To install as a cpp library
   ```bash
   $ mkdir build && cd build
