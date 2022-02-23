@@ -485,7 +485,7 @@ namespace NEAT
         , ArchiveEnforcement(false)
         , NormalizeGenomeSize(true)
         , CustomConstraints(nullptr)
-#ifdef USE_BOOST_PYTHON
+#ifdef PYTHON_BINDINGS
         // same as above, but for Python
         , pyCustomConstraints()
 #endif
@@ -579,6 +579,9 @@ namespace NEAT
         , MaxNeuronTimeConstant(0.0)
         , MinNeuronBias(0.0)
         , MaxNeuronBias(0.0)
+        , NeuronTraits()
+        , LinkTraits()
+        , GenomeTraits()
         , MutateNeuronTraitsProb(1.0)
         , MutateLinkTraitsProb(1.0)
         , MutateGenomeTraitsProb(1.0)
@@ -612,10 +615,6 @@ namespace NEAT
         , LeoThreshold(0.1)
         , LeoSeed(false)
         , GeometrySeed(false)
-        // Mutation parameters maps
-        , NeuronTraits()
-        , LinkTraits()
-        , GenomeTraits()
 
     {
         //Reset();

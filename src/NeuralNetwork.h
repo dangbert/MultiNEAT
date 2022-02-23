@@ -30,33 +30,14 @@
 // Description: Definition for the phenotype data structures.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef USE_BOOST_PYTHON
-
-#include <boost/python.hpp>
-
-#include <boost/version.hpp>
-#if BOOST_VERSION < 106500
-    #include <boost/python/numeric.hpp>
-#else
-    #include <boost/python/numpy.hpp>
-#endif
-
-#include <boost/python/tuple.hpp>
-#include <math.h>
-#include <cmath>
-
-namespace py = boost::python;
-
-#if BOOST_VERSION < 106500
-    typedef typename py::numeric::array pyndarray;
-#else
-    typedef typename py::numpy::ndarray pyndarray;
-#endif
-
-#endif
-
 #include <vector>
 #include "Genes.h"
+#include "Random.h"
+
+#ifdef PYTHON_BINDINGS
+    #include <pybind11/pybind11.h>
+    #include <pybind11/numpy.h>
+#endif
 
 namespace NEAT
 {
@@ -77,7 +58,7 @@ public:
     double m_hebb_rate;
     double m_hebb_pre_rate;
 
-    // comparison operator (nessesary for boost::python)
+    // comparison operator (nessesary for python bindings)
     bool operator==(Connection const& other) const
     {
         if ((m_source_neuron_idx == other.m_source_neuron_idx) &&
@@ -111,7 +92,7 @@ public:
     // the sensitivity matrix of this neuron (for RTRL learning)
     std::vector< std::vector< double > > m_sensitivity_matrix;
 
-    // comparison operator (nessesary for boost::python)
+    // comparison operator (nessesary for python bindings)
     bool operator==(Neuron const& other) const
     {
         if ((m_type == other.m_type) &&
@@ -144,7 +125,7 @@ public:
     std::vector<Connection> m_connections; // array size - number of connections
     std::vector<Neuron>     m_neurons;
 
-    NeuralNetwork(bool a_Minimal); // if given false, the constructor will create a standard XOR network topology.
+    NeuralNetwork(bool a_Minimal, RNG& random); // if given false, the constructor will create a standard XOR network topology.
     NeuralNetwork();
 
     void InitRTRLMatrix(); // initializes the sensitivity cube for RTRL learning.
@@ -167,11 +148,9 @@ public:
 
     void Input(const std::vector<double>& a_Inputs);
 
-#ifdef USE_BOOST_PYTHON
-
-    void Input_python_list(const py::list& a_Inputs);
-    void Input_numpy(const pyndarray& a_Inputs);
-
+#ifdef PYTHON_BINDINGS
+    void Input_python_list(const pybind11::list& a_Inputs);
+    void Input_numpy(const pybind11::array_t<double, pybind11::array::c_style | pybind11::array::forcecast>& a_Inputs);
 #endif
 
     std::vector<double> Output();

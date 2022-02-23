@@ -7,21 +7,11 @@
 
 #include <string>
 #include <vector>
-#include <boost/any.hpp>
-#include <boost/variant.hpp>
+#include <variant>
 #include <cmath>
 
-#ifdef USE_BOOST_PYTHON
-#include <boost/python.hpp>
-#endif
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/shared_ptr.hpp>
-
-namespace bs = boost;
-#ifdef USE_BOOST_PYTHON
-namespace py = bs::python;
+#ifdef PYTHON_BINDINGS
+    #include <pybind11/pybind11.h>
 #endif
 
 namespace NEAT
@@ -49,9 +39,9 @@ namespace NEAT
         double value;
     };
     
-    typedef bs::variant<int, double, std::string, intsetelement, floatsetelement
-#ifdef USE_BOOST_PYTHON
-  , py::object
+    typedef std::variant<int, double, std::string, intsetelement, floatsetelement
+#ifdef PYTHON_BINDINGS
+  , pybind11::object
 #endif
     > TraitType;
 
@@ -110,13 +100,13 @@ namespace NEAT
         double m_MutationProb;
 
         std::string type; // can be "int", "float", "string", "intset", "floatset", "pyobject"
-        bs::variant<IntTraitParameters,
+        std::variant<IntTraitParameters,
                     FloatTraitParameters,
                     StringTraitParameters,
                     IntSetTraitParameters,
                     FloatSetTraitParameters
-#ifdef USE_BOOST_PYTHON
-                  , py::object
+#ifdef PYTHON_BINDINGS
+                  , pybind11::object
 #endif
         > m_Details;
 

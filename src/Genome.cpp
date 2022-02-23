@@ -35,11 +35,11 @@
 #include <limits>
 #include <cmath>
 #include <utility>
-#include <boost/unordered_map.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
-#include <boost/accumulators/statistics/variance.hpp>
+#include <unordered_map>
+#include <functional>
+#include <numeric>
+#include <memory>
+#include <list>
 
 #include "Genome.h"
 #include "Random.h"
@@ -47,8 +47,34 @@
 #include "Parameters.h"
 #include "MultiNEATAssert.h"
 
+// https://stackoverflow.com/questions/10405030/c-unordered-map-fail-when-used-with-a-vector-as-key
+template <class T>
+std::size_t hash_combine(std::size_t &seed, const T &v)
+{
+    std::hash<T> hasher;
+    return seed ^ (hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+}
+
+namespace std
+{
+    template <>
+    struct hash<std::vector<double>>
+    {
+        std::size_t operator()(const std::vector<double>& value) const
+        {
+            return std::accumulate(value.begin(), value.end(), 0.0, [&](size_t a, double b){return hash_combine(a, std::hash<double>()(b));});
+        }
+    };
+}
+
 namespace NEAT
 {
+    template <class T>
+    inline void hash_combine(std::size_t& seed, const T& v)
+    {
+        std::hash<T> hasher;
+        seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+    }
 
     // forward
     ActivationFunction GetRandomActivation( const Parameters &a_Parameters, RNG &a_RNG);
@@ -98,7 +124,7 @@ namespace NEAT
         m_PhenotypeBehavior = a_G.m_PhenotypeBehavior;
         m_initial_num_neurons = a_G.m_initial_num_neurons;
         m_initial_num_links = a_G.m_initial_num_links;
-#ifdef USE_BOOST_PYTHON
+#ifdef PYTHON_BINDINGS
         m_behavior = a_G.m_behavior;
 #endif
     }
@@ -124,7 +150,7 @@ namespace NEAT
             m_PhenotypeBehavior = a_G.m_PhenotypeBehavior;
             m_initial_num_neurons = a_G.m_initial_num_neurons;
             m_initial_num_links = a_G.m_initial_num_links;
-#ifdef USE_BOOST_PYTHON
+#ifdef PYTHON_BINDINGS
             m_behavior = a_G.m_behavior;
 #endif
         }
@@ -727,31 +753,70 @@ namespace NEAT
         return false;
     }
 
+    // aart:
+    // based on https://www.geeksforgeeks.org/detect-cycle-in-a-graph/
+    class Graph
+    {
+        std::vector<std::vector<int>> adjacency_lists;
+
+        bool IsCyclicRec(int v, std::vector<bool>& visited, std::vector<bool>& recursion_stack)
+        {
+            if (!visited[v])
+            {
+                visited[v] = true;
+                recursion_stack[v] = true;
+        
+                // recur for all the vertices adjacent to this vertex
+                for (auto& child : adjacency_lists[v])
+                {
+                    if (recursion_stack[child] || IsCyclicRec(child, visited, recursion_stack))
+                        return true;
+                }
+  
+                recursion_stack[v] = false;
+            }
+            return false;
+        }
+    public:
+        Graph(size_t num_nodes) :
+            adjacency_lists(num_nodes)
+        {}
+
+        void AddEdge(int from_node, int to_node)
+        {
+            adjacency_lists[from_node].push_back(to_node);
+        }
+
+        // returns true if there is a cycle in this graph
+        bool IsCyclic()
+        {
+            // mark all the vertices as not visited and not part of recursion stack
+            std::vector<bool> visited(adjacency_lists.size(), false);
+            std::vector<bool> recursion_stack(adjacency_lists.size(), false);
+        
+            // call the recursive helper function to detect cycles in different DFS trees
+            for(size_t i = 0; i < adjacency_lists.size(); ++i)
+                if (IsCyclicRec(i, visited, recursion_stack))
+                    return true;
+        
+            return false;
+        }
+ 
+    };
+
     bool Genome::HasLoops()
     {
         NeuralNetwork net;
         BuildPhenotype(net);
-        bool has_cycles = false;
 
         // convert the net to a Boost::Graph object
-        Graph g;
+        Graph graph(net.m_connections.size());
         for (long unsigned int i = 0; i < net.m_connections.size(); i++)
         {
-            bs::add_edge(net.m_connections[i].m_source_neuron_idx, net.m_connections[i].m_target_neuron_idx, g);
+            graph.AddEdge(net.m_connections[i].m_source_neuron_idx, net.m_connections[i].m_target_neuron_idx);
         }
 
-        typedef std::vector<Vertex> container;
-        container c;
-        try
-        {
-            bs::topological_sort(g, std::back_inserter(c));
-        }
-        catch (const bs::not_a_dag&)
-        {
-            has_cycles = true;
-        }
-
-        return has_cycles;
+        return graph.IsCyclic();
     }
 
     // Returns true if the specified link is present in the genome
@@ -814,7 +879,7 @@ namespace NEAT
             {
                 try
                 {
-                    t_c.m_hebb_rate = boost::get<double>(m_LinkGenes[i].m_Traits.at("hebb_rate").value);
+                    t_c.m_hebb_rate = std::get<double>(m_LinkGenes[i].m_Traits.at("hebb_rate").value);
                 }
                 catch(const std::exception &e)
                 {
@@ -826,7 +891,7 @@ namespace NEAT
             {
                 try
                 {
-                    t_c.m_hebb_pre_rate = boost::get<double>(m_LinkGenes[i].m_Traits.at("hebb_pre_rate").value);
+                    t_c.m_hebb_pre_rate = std::get<double>(m_LinkGenes[i].m_Traits.at("hebb_pre_rate").value);
                 }
                 catch(const std::exception &e)
                 {
@@ -855,7 +920,7 @@ namespace NEAT
 
     // The procedure uses the [0] CPPN output for creating nodes, and if the substrate is leaky, [1] and [2] for time constants and biases
     // Also assumes the CPPN uses signed activation outputs
-    void Genome::BuildHyperNEATPhenotype(NeuralNetwork &net, Substrate &subst)
+    void Genome::BuildHyperNEATPhenotype(NeuralNetwork &net, Substrate &subst, RNG& rng)
     {
         // We need a substrate with at least one input and output
         ASSERT(subst.m_input_coords.size() > 0);
@@ -923,7 +988,7 @@ namespace NEAT
 
         // Begin querying the CPPN
         // Create the neural network that will represent the CPPN
-        NeuralNetwork t_temp_phenotype(true);
+        NeuralNetwork t_temp_phenotype(true, rng);
         BuildPhenotype(t_temp_phenotype);
         t_temp_phenotype.Flush();
 
@@ -1276,7 +1341,6 @@ namespace NEAT
 
         // used for percentage of excess/disjoint genes calculation
         int t_max_genome_size = static_cast<int> (NumLinks()   < a_G.NumLinks())   ? (a_G.NumLinks())   : (NumLinks());
-        int t_max_neurons     = static_cast<int> (NumNeurons() < a_G.NumNeurons()) ? (a_G.NumNeurons()) : (NumNeurons());
 
         t_g1 = m_LinkGenes.cbegin();
         t_g2 = a_G.m_LinkGenes.cbegin();
@@ -3442,7 +3506,7 @@ namespace NEAT
         {
             bool doit = false;
             std::string s = t->second.dep_key;
-            //std::string sv = bs::get<std::string>(t->second.dep_values);
+            //std::string sv = std::get<std::string>(t->second.dep_values);
             if (s != "")
             {
                 // there is such trait..
@@ -3450,19 +3514,19 @@ namespace NEAT
                 {
                     /*int a; double b; std::string c;
                     if ((*it).m_Traits[s].value.type() == typeid(int))
-                        a = bs::get<int>((*it).m_Traits[s].value);
+                        a = std::get<int>((*it).m_Traits[s].value);
                     if ((*it).m_Traits[s].value.type() == typeid(double))
-                        b = bs::get<double>((*it).m_Traits[s].value);
+                        b = std::get<double>((*it).m_Traits[s].value);
                     if ((*it).m_Traits[s].value.type() == typeid(std::string))
-                        c = bs::get<std::string>((*it).m_Traits[s].value);
+                        c = std::get<std::string>((*it).m_Traits[s].value);
 
                     int a1; double b1; std::string c1;
                     if ((t->second.dep_values).type() == typeid(int))
-                        a1 = bs::get<int>((t->second.dep_values));
+                        a1 = std::get<int>((t->second.dep_values));
                     if ((t->second.dep_values).type() == typeid(double))
-                        b1 = bs::get<double>((t->second.dep_values));
+                        b1 = std::get<double>((t->second.dep_values));
                     if ((t->second.dep_values).type() == typeid(std::string))
-                        c1 = bs::get<std::string>((t->second.dep_values));*/
+                        c1 = std::get<std::string>((t->second.dep_values));*/
                 
                     // and it has the right value?
                     for(long unsigned int ix=0; ix<t->second.dep_values.size(); ix++)
@@ -3483,25 +3547,25 @@ namespace NEAT
             if (doit)
             {
                 std::cout << t->first << " - ";
-                if (t->second.value.type() == typeid(int))
+                if (std::holds_alternative<int>(t->second.value))
                 {
-                    std::cout << bs::get<int>(t->second.value);
+                    std::cout << std::get<int>(t->second.value);
                 }
-                if (t->second.value.type() == typeid(double))
+                if (std::holds_alternative<double>(t->second.value))
                 {
-                    std::cout << bs::get<double>(t->second.value);
+                    std::cout << std::get<double>(t->second.value);
                 }
-                if (t->second.value.type() == typeid(std::string))
+                if (std::holds_alternative<std::string>(t->second.value))
                 {
-                    std::cout << "\"" << bs::get<std::string>(t->second.value) << "\"";
+                    std::cout << "\"" << std::get<std::string>(t->second.value) << "\"";
                 }
-                if (t->second.value.type() == typeid(intsetelement))
+                if (std::holds_alternative<intsetelement>(t->second.value))
                 {
-                    std::cout << (bs::get<intsetelement>(t->second.value)).value;
+                    std::cout << (std::get<intsetelement>(t->second.value)).value;
                 }
-                if (t->second.value.type() == typeid(floatsetelement))
+                if (std::holds_alternative<floatsetelement>(t->second.value))
                 {
-                    std::cout << (bs::get<floatsetelement>(t->second.value)).value;
+                    std::cout << (std::get<floatsetelement>(t->second.value)).value;
                 }
             
                 std::cout << ", ";
@@ -3543,236 +3607,8 @@ namespace NEAT
         std::cout << "==================================\n";
         std::cout << "====================================================================\n";
     }
-
-
-    ////////////////////////////////////////////
-    // Evovable Substrate Hyper NEAT.
-    // For more info on the algorithm check: http://eplex.cs.ucf.edu/ESHyperNEAT/
-    ////////////////////////////////////////////
     
-    
-    //divide and init for n dimensions
-    
-//    void Genome::BuildESHyperNEATPhenotypeND(NeuralNetwork &net, Substrate &subst, Parameters &params)
-//    {
-//        ASSERT(subst.m_input_coords.size() > 0);
-//        ASSERT(subst.m_output_coords.size() > 0);
-//
-//        unsigned int input_count = subst.m_input_coords.size();
-//        unsigned int output_count = subst.m_output_coords.size();
-//        unsigned int hidden_index = input_count + output_count;
-//        unsigned int source_index = 0;
-//        unsigned int target_index = 0;
-//        unsigned int hidden_counter = 0;
-//        unsigned int maxNodes = std::pow(4, params.MaxDepth);
-//        unsigned int coord_len = subst.m_input_coords.at(0).size();
-//        std::vector<TempConnection> TempConnections;
-//        TempConnections.reserve(maxNodes + 1);
-//
-//        std::vector<double> point;
-//
-//        point.reserve(coord_len);
-//
-//        boost::shared_ptr<nTree> root;
-//
-//        boost::unordered_map<std::vector<double>, int> hidden_nodes;
-//        hidden_nodes.reserve(maxNodes);
-//
-//        boost::unordered_map<std::vector<double>, int> temp;
-//        temp.reserve(maxNodes);
-//
-//        boost::unordered_map<std::vector<double>, int> unexplored_nodes;
-//        unexplored_nodes.reserve(maxNodes);
-//
-//        net.m_neurons.reserve(maxNodes);
-//        net.m_connections.reserve((maxNodes * (maxNodes - 1)) / 2);
-//        net.SetInputOutputDimentions(static_cast<unsigned short>(input_count),
-//                                     static_cast<unsigned short>(output_count));
-//
-//
-//        NeuralNetwork t_temp_phenotype(true);
-//        BuildPhenotype(t_temp_phenotype);
-//
-//        // Find Inputs to Hidden connections.
-//        for (unsigned int i = 0; i < input_count; i++)
-//        {
-//            // Get the nTree
-//            std::vector <double> root_coord;
-//            root_coord.reserve(coord_len);
-//            for(unsigned int c_len = 0; c_len < coord_len; c_len++)
-//            {
-//                root_coord.push_back(0.0);
-//            }
-//            root = boost::shared_ptr<nTree>(
-//                    new nTree(params.nTreeCoord, params.Width, params.Height, 1));
-//            DivideInitializeND(subst.m_input_coords[i], root, t_temp_phenotype, params, true, 0.0);
-//            TempConnections.clear();
-//            PruneExpressND(subst.m_input_coords[i], root, t_temp_phenotype, params, TempConnections, true);
-//
-//            for (unsigned int j = 0; j < TempConnections.size(); j++)
-//            {
-//                if (std::abs(TempConnections[j].weight * subst.m_max_weight_and_bias) <
-//                    0.2/*subst.m_link_threshold*/) // TODO: fix this
-//                    continue;
-//
-//                // Find the hidden node in the hidden nodes. If it is not there add it.
-//                if (hidden_nodes.find(TempConnections[j].target) == hidden_nodes.end())
-//                {
-//                    target_index = hidden_counter++;
-//                    hidden_nodes.insert(std::make_pair(TempConnections[j].target, target_index));
-//                }
-//                    // Add connection
-//                else
-//                {
-//                    target_index = hidden_nodes.find(TempConnections[j].target)->second;
-//                }
-//
-//                Connection tc;
-//                tc.m_source_neuron_idx = i;
-//                tc.m_target_neuron_idx = target_index + hidden_index;
-//                tc.m_weight = TempConnections[j].weight * subst.m_max_weight_and_bias;
-//                tc.m_recur_flag = false;
-//
-//                net.m_connections.push_back(tc);
-//
-//            }
-//        }
-//        // Hidden to hidden.
-//        // Basically the same procedure as above repeated IterationLevel times (see the params)
-//        unexplored_nodes = hidden_nodes;
-//        for (unsigned int i = 0; i < params.IterationLevel; i++)
-//        {
-//            boost::unordered_map<std::vector<double>, int>::iterator itr_hid;
-//            for (itr_hid = unexplored_nodes.begin(); itr_hid != unexplored_nodes.end(); itr_hid++)
-//            {
-//                root = boost::shared_ptr<nTree>(
-//                        new nTree(params.nTreeCoord, params.Width, params.Height, 1));
-//                DivideInitializeND(itr_hid->first, root, t_temp_phenotype, params, true, 0.0);
-//                TempConnections.clear();
-//                PruneExpress(itr_hid->first, root, t_temp_phenotype, params, TempConnections, true);
-//                //root.reset();
-//
-//                for (unsigned int k = 0; k < TempConnections.size(); k++)
-//                {
-//                    if (std::abs(TempConnections[k].weight * subst.m_max_weight_and_bias) <
-//                        0.2/*subst.m_link_threshold*/) // TODO: fix this
-//                        continue;
-//
-//                    if (hidden_nodes.find(TempConnections[k].target) == hidden_nodes.end())
-//                    {
-//                        target_index = hidden_counter++;
-//                        hidden_nodes.insert(std::make_pair(TempConnections[k].target, target_index));
-//                    }
-//                    else if(!params.feed_forward) // TODO: This can be skipped if building a feed forwad network.
-//                    {
-//                        target_index = hidden_nodes.find(TempConnections[k].target)->second;
-//                    }
-//
-//                    Connection tc;
-//                    tc.m_source_neuron_idx = itr_hid->second + hidden_index;  // NO!!!
-//                    tc.m_target_neuron_idx = target_index + hidden_index;
-//                    tc.m_weight = TempConnections[k].weight * subst.m_max_weight_and_bias;
-//                    tc.m_recur_flag = false;
-//
-//                    net.m_connections.push_back(tc);
-//
-//                }
-//            }
-//            // Now get the newly discovered hidden nodes
-//            boost::unordered_map<std::vector<double>, int>::iterator itr1;
-//            for (itr1 = hidden_nodes.begin(); itr1 != hidden_nodes.end(); itr1++)
-//            {
-//                if (unexplored_nodes.find(itr1->first) == unexplored_nodes.end())
-//                {
-//                    temp.insert(std::make_pair(itr1->first, itr1->second));
-//                }
-//            }
-//            unexplored_nodes = temp;
-//        }
-//
-//        // Finally Output to Hidden. Note that unlike before, here we connect the outputs to
-//        // existing hidden nodes and no new nodes are added.
-//        for (unsigned int i = 0; i < output_count; i++)
-//        {
-//            root = boost::shared_ptr<nTree>(
-//                    new nTree(params.nTreeCoord, params.Width, params.Height, 1));
-//            DivideInitialize(subst.m_output_coords[i], root, t_temp_phenotype, params, false, 0.0);
-//            TempConnections.clear();
-//            PruneExpress(subst.m_output_coords[i], root, t_temp_phenotype, params, TempConnections, false);
-//
-//            for (unsigned int j = 0; j < TempConnections.size(); j++)
-//            {
-//                // Make sure the link weight is above the expected threshold.
-//                if (std::abs(TempConnections[j].weight * subst.m_max_weight_and_bias) <
-//                    0.2 /*subst.m_link_threshold*/) // TODO: fix this
-//                    continue;
-//
-//                if (hidden_nodes.find(TempConnections[j].source) != hidden_nodes.end())
-//                {
-//                    source_index = hidden_nodes.find(TempConnections[j].source)->second;
-//
-//                    Connection tc;
-//                    tc.m_source_neuron_idx = source_index + hidden_index;
-//                    tc.m_target_neuron_idx = i + input_count;
-//
-//                    tc.m_weight = TempConnections[j].weight * subst.m_max_weight_and_bias;
-//                    tc.m_recur_flag = false;
-//
-//                    net.m_connections.push_back(tc);
-//                }
-//            }
-//        }
-//        // Add the neurons.Input first, followed by bias, output and hidden. In this order.
-//
-//        for (unsigned int i = 0; i < input_count - 1; i++)
-//        {
-//            Neuron t_n;
-//            t_n.m_a = 1;
-//            t_n.m_b = 0;
-//            t_n.m_substrate_coords = subst.m_input_coords[i];
-//            t_n.m_activation_function_type = NEAT::LINEAR;
-//            t_n.m_type = NEAT::INPUT;
-//            net.m_neurons.push_back(t_n);
-//        }
-//        // Bias n.
-//        Neuron t_n;
-//        t_n.m_a = 1;
-//        t_n.m_b = 0;
-//        t_n.m_substrate_coords = subst.m_input_coords[input_count - 1];
-//        t_n.m_activation_function_type = NEAT::LINEAR;
-//        t_n.m_type = NEAT::BIAS;
-//        net.m_neurons.push_back(t_n);
-//
-//        for (unsigned int i = 0; i < output_count; i++)
-//        {
-//            Neuron t_n;
-//            t_n.m_a = 1;
-//            t_n.m_b = 0;
-//            t_n.m_substrate_coords = subst.m_output_coords[i];
-//            t_n.m_activation_function_type = subst.m_output_nodes_activation;
-//            t_n.m_type = NEAT::OUTPUT;
-//            net.m_neurons.push_back(t_n);
-//        }
-//
-//        boost::unordered_map<std::vector<double>, int>::iterator itr;
-//        for (itr = hidden_nodes.begin(); itr != hidden_nodes.end(); itr++)
-//        {
-//            Neuron t_n;
-//            t_n.m_a = 1;
-//            t_n.m_b = 0;
-//            t_n.m_substrate_coords = itr->first;
-//
-//            ASSERT(t_n.m_substrate_coords.size() > 0); // prevent 0D points
-//            t_n.m_activation_function_type = subst.m_hidden_nodes_activation;
-//            t_n.m_type = NEAT::HIDDEN;
-//            net.m_neurons.push_back(t_n);
-//        }
-//
-//        // Clean the generated network from dangling connections and we're good to go.
-//        Clean_Net(net.m_connections, input_count, output_count, hidden_nodes.size());
-//    }
-    
-    void Genome::BuildESHyperNEATPhenotype(NeuralNetwork &net, Substrate &subst, Parameters &params)
+    void Genome::BuildESHyperNEATPhenotype(NeuralNetwork &net, Substrate &subst, Parameters &params, RNG& rng)
     {
         ASSERT(subst.m_input_coords.size() > 0);
         ASSERT(subst.m_output_coords.size() > 0);
@@ -3791,15 +3627,15 @@ namespace NEAT
         std::vector<double> point;
         point.reserve(3);
 
-        boost::shared_ptr<QuadPoint> root;
+        std::shared_ptr<QuadPoint> root;
 
-        boost::unordered_map<std::vector<double>, int> hidden_nodes;
+        std::unordered_map<std::vector<double>, int> hidden_nodes;
         hidden_nodes.reserve(maxNodes);
 
-        boost::unordered_map<std::vector<double>, int> temp;
+        std::unordered_map<std::vector<double>, int> temp;
         temp.reserve(maxNodes);
 
-        boost::unordered_map<std::vector<double>, int> unexplored_nodes;
+        std::unordered_map<std::vector<double>, int> unexplored_nodes;
         unexplored_nodes.reserve(maxNodes);
 
         net.m_neurons.reserve(maxNodes);
@@ -3808,14 +3644,14 @@ namespace NEAT
                                      static_cast<unsigned short>(output_count));
 
 
-        NeuralNetwork t_temp_phenotype(true);
+        NeuralNetwork t_temp_phenotype(true, rng);
         BuildPhenotype(t_temp_phenotype);
 
         // Find Inputs to Hidden connections.
         for (unsigned int i = 0; i < input_count; i++)
         {
             // Get the Quadtree and express the connections in it for this input
-            root = boost::shared_ptr<QuadPoint>(
+            root = std::shared_ptr<QuadPoint>(
                     new QuadPoint(params.Qtree_X, params.Qtree_Y, params.Width, params.Height, 1));
             DivideInitialize(subst.m_input_coords[i], root, t_temp_phenotype, params, true, 0.0);
             TempConnections.clear();
@@ -3854,10 +3690,10 @@ namespace NEAT
         unexplored_nodes = hidden_nodes;
         for (unsigned int i = 0; i < params.IterationLevel; i++)
         {
-            boost::unordered_map<std::vector<double>, int>::iterator itr_hid;
+            std::unordered_map<std::vector<double>, int>::iterator itr_hid;
             for (itr_hid = unexplored_nodes.begin(); itr_hid != unexplored_nodes.end(); itr_hid++)
             {
-                root = boost::shared_ptr<QuadPoint>(
+                root = std::shared_ptr<QuadPoint>(
                         new QuadPoint(params.Qtree_X, params.Qtree_Y, params.Width, params.Height, 1));
                 DivideInitialize(itr_hid->first, root, t_temp_phenotype, params, true, 0.0);
                 TempConnections.clear();
@@ -3891,7 +3727,7 @@ namespace NEAT
                 }
             }
             // Now get the newly discovered hidden nodes
-            boost::unordered_map<std::vector<double>, int>::iterator itr1;
+            std::unordered_map<std::vector<double>, int>::iterator itr1;
             for (itr1 = hidden_nodes.begin(); itr1 != hidden_nodes.end(); itr1++)
             {
                 if (unexplored_nodes.find(itr1->first) == unexplored_nodes.end())
@@ -3906,7 +3742,7 @@ namespace NEAT
         // existing hidden nodes and no new nodes are added.
         for (unsigned int i = 0; i < output_count; i++)
         {
-            root = boost::shared_ptr<QuadPoint>(
+            root = std::shared_ptr<QuadPoint>(
                     new QuadPoint(params.Qtree_X, params.Qtree_Y, params.Width, params.Height, 1));
             DivideInitialize(subst.m_output_coords[i], root, t_temp_phenotype, params, false, 0.0);
             TempConnections.clear();
@@ -3966,7 +3802,7 @@ namespace NEAT
             net.m_neurons.push_back(t_n);
         }
 
-        boost::unordered_map<std::vector<double>, int>::iterator itr;
+        std::unordered_map<std::vector<double>, int>::iterator itr;
         for (itr = hidden_nodes.begin(); itr != hidden_nodes.end(); itr++)
         {
             Neuron t_n;
@@ -3983,80 +3819,9 @@ namespace NEAT
         // Clean the generated network from dangling connections and we're good to go.
         Clean_Net(net.m_connections, input_count, output_count, hidden_nodes.size());
     }
-    // uses n dimensional sub division tree to determine placement of hidden nodes in the substrate
-//    void Genome::DivideInitializeND(const std::vector<double> &node,
-//                                  boost::shared_ptr<nTree> &root,
-//                                  NeuralNetwork &cppn,
-//                                  Parameters &params,
-//                                  const bool &outgoing)
-//    {
-//        int cpp_depth = 8;
-//
-//        // some of the division, the permutation of center points in particular
-//        // has been included with the tree struct
-//        // and will simply be called here
-//        std::vector<double> t_inputs;
-//
-//        boost::shared_ptr<nTree> p;
-//        std::queue<boost::shared_ptr<nTree> > q;
-//        q.push(p);
-//        while(!q.empty())
-//        {
-//            p = q.front();
-//            p.set_children();
-//            for (unsigned int i = 0; i < p->children.size(); i++)
-//            {
-//                t_inputs.clear();
-//                t_inputs.reserve(cppn.NumInputs());
-//                if(outgoing)
-//                {
-//                    t_inputs = node;
-//                    for(unsigned int ci = 0; ci < node.size(); i++)
-//                    {
-//                        t_inputs.push_back(p->children[i]->coord[ci]);
-//                    }
-//                }
-//                else
-//                {
-//                    t_inputs = p->children[i]->coord;
-//                    for(unsigned int ci = 0; ci < node.size(); i++)
-//                    {
-//                        t_inputs.push_back(node[ci]);
-//                    }
-//                }
-//                t_inputs[t_inputs.size() - 1] = (params.CPPN_Bias);
-//                                cppn.Flush();
-//                cppn.Input(t_inputs);
-//
-//                for (int d = 0; d < cppn_depth; d++)
-//                {
-//                    cppn.Activate();
-//                }
-//                p->children[i]->weight = cppn.Output()[0];
-//                if (params.Leo)
-//                {
-//                    p->children[i]->leo = cppn.Output()[cppn.Output().size() - 1];
-//                }
-//                cppn.Flush();
-//
-//            }
-//
-//            if ((p->level < params.InitialDepth) ||
-//                ((p->level < params.MaxDepth) && Variance(p) > params.DivisionThreshold))
-//            {
-//                for(unsigned int add_idx = 0; add_idx < p->children.size(); add_idx)
-//                {
-//                    q.push(p->children[add_idx]);
-//                }
-//            }
-//            q.pop();
-//        }
-//        return;
-//
-//    }
-//    // Used to determine the placement of hidden neurons in the Evolvable Substrate.
+
     void Genome::DivideInitialize(const std::vector<double> &node,
-                                  boost::shared_ptr<QuadPoint> &root,
+                                  std::shared_ptr<QuadPoint> &root,
                                   NeuralNetwork &cppn,
                                   Parameters &params,
                                   const bool &outgoing,
@@ -4070,24 +3835,24 @@ namespace NEAT
         // Standard Tree stuff. Create children, check their output with the CPPN
         // and if they have higher variance add them to their parent. Repeat with the children
         // until maxDepth has been reached or if the variance isn't high enough.
-        boost::shared_ptr<QuadPoint> p;
+        std::shared_ptr<QuadPoint> p;
 
-        std::queue<boost::shared_ptr<QuadPoint> > q;
+        std::queue<std::shared_ptr<QuadPoint> > q;
         q.push(root);
         while (!q.empty())
         {
             p = q.front();
             // Add children
-            p->children.push_back(boost::shared_ptr<QuadPoint>(
+            p->children.push_back(std::shared_ptr<QuadPoint>(
                     new QuadPoint(p->x - p->width / 2, p->y - p->height / 2, p->width / 2, p->height / 2,
                                   p->level + 1)));
-            p->children.push_back(boost::shared_ptr<QuadPoint>(
+            p->children.push_back(std::shared_ptr<QuadPoint>(
                     new QuadPoint(p->x - p->width / 2, p->y + p->height / 2, p->width / 2, p->height / 2,
                                   p->level + 1)));
-            p->children.push_back(boost::shared_ptr<QuadPoint>(
+            p->children.push_back(std::shared_ptr<QuadPoint>(
                     new QuadPoint(p->x + p->width / 2, p->y + p->height / 2, p->width / 2, p->height / 2,
                                   p->level + 1)));
-            p->children.push_back(boost::shared_ptr<QuadPoint>(
+            p->children.push_back(std::shared_ptr<QuadPoint>(
                     new QuadPoint(p->x + p->width / 2, p->y - p->height / 2, p->width / 2, p->height / 2,
                                   p->level + 1)));
 
@@ -4137,8 +3902,8 @@ namespace NEAT
 
             }
 
-            if ((p->level < params.InitialDepth) ||
-                ((p->level < params.MaxDepth) && Variance(p) > params.DivisionThreshold))
+            if ((p->level < static_cast<int>(params.InitialDepth)) ||
+                ((p->level < static_cast<int>(params.MaxDepth)) && Variance(p) > params.DivisionThreshold))
             {
                 for (unsigned int i = 0; i < 4; i++)
                 {
@@ -4152,114 +3917,10 @@ namespace NEAT
         return;
     }
 
-//    void Genome::PruneExpressND(const std::vector<double> &node,
-//                              boost::shared_ptr<nTree> &root,
-//                              NeuralNetwork &cppn,
-//                              Parameters &params,
-//                              std::vector<Genome::TempConnection> &connections,
-//                              const bool &outgoing)
-//    {
-//        if (root->children[0] == NULL)
-//        {
-//            return;
-//        }
-//
-//        else
-//        {
-//            for (unsigned int i = 0; i < root->children.size(); i++)
-//            {
-//                if(Variance(root->children[i]) > params.VarianceThreshold)
-//                {
-//                    PruneExpressND(node, root->children[i], cppn, params, connections, outgoing);
-//                }
-//
-//                else if(!params.Leo || (params.Leo && root->children[i]->leo > params.LeoThreshold))
-//                {
-//                    int cpp_depth = 8; //seems to be hard coded across the codebase, seems like plenty of depth to me!
-//                    std::vector<double> child_array;
-//                    for(unsigned int c_ix = 0; c_ix < root->children[i]->coord.size(); c_ix++)
-//                    {
-//                        std::vector<double> full_in;
-//                        std::vector<double> full_in2;
-//                        std::vector<double> inputs2;
-//                        std::vector<double> inputs;
-//                        int root_index = 0;
-//                        int sign = -1;
-//                        double dimen_split1 = root->children[i]->coord[c_ix] - root->width;
-//                        double dimen_split2 = root->children[i]->coord[c_ix] + root->width;
-//                        for(unsigned int c2_ix = 0; c2_ix < node.size(); c2_ix++)
-//                        {
-//                            if(c2_ix == c_ix)
-//                            {
-//                                inputs.append(root->children[i].coord.at(c2_ix));
-//                                inputs2.append(root->children[i]->coord.at(c2_ix));
-//                            } else {
-//                                inputs.append(dimen_split2);
-//                                inputs2.append(dimen_split1);
-//                            }
-//                        }
-//                        if(outgoing)
-//                        {
-//                            full_in = node;
-//                            full_in2 = full_in;
-//                            fulll_in.insert(full_in.end(), inputs.begin(), inputs.end());
-//                            full_in2.insert(full_in2.end(), inputs2.begin(), inputs2.end());
-//                        }
-//                        else
-//                        {
-//                            full_in2 = inputs2;
-//                            full_in = inputs;
-//                            full_in2.insert(full_in2.end(), node.begin(), node.end());
-//                            full_in.insert(full_in.end(), node.begin(), node.end());
-//                        }
-//                        full_in.push_back(params.CPPN_Bias);
-//                        full_in2.push_back(params.CPPN_Bias);
-//                        cppn.Inputs(full_in);
-//                        child_array.append(cppn.Activate()[0]);
-//                        for (int d = 0; d < cppn_depth; d++)
-//                        {
-//                            cppn.Activate();
-//                        }
-//                        child_array.append(Abs(root->child[i]->weight - Output()[0]));
-//                        cppn.Flush();
-//                        cppn.Inputs(full_in2);
-//                        child_array.append(cppn.Activate()[0]);
-//                        for (int d = 0; d < cppn_depth; d++)
-//                        {
-//                            cppn.Activate();
-//                        }
-//                        child_array.append(Abs(root->child[i]->weight - Output()[0]));
-//                    }
-//                    double biggest_smallest = std::min(child_array[0], child_array[1]);
-//                    unsigned int pair_idx = 2;
-//                    while(pair_idx < child_array.size()/2)
-//                    {
-//                        unsigned int new_min = std::min(child_array[pair_idx], child_array[pair_idx + 1]);
-//                        if(new_min > biggest_smallest)
-//                        {
-//                            biggest_smallest = new_min;
-//                        }
-//                        pair_idx += 2;
-//                    }
-//                    if(biggest_smallest > params.BandThreshold)
-//                    {
-//                        if(outgoing)
-//                        {
-//                            TempConnection tc(node, root->children[i]->coord, root->children[i]->weight, node.size());
-//                        }
-//                        else
-//                        {
-//                            TempConnection tc(root->children[i]->coord, node, root->children[i]->weight, node.size());
-//                        }
-//                        connections.push_back(tc);
-//                    }
-//                }
-//            }
-//        }
     // We take the tree generated above and see which connections can be expressed on the basis of Variance threshold,
     // Band threshold and LEO.
     void Genome::PruneExpress(const std::vector<double> &node,
-                              boost::shared_ptr<QuadPoint> &root,
+                              std::shared_ptr<QuadPoint> &root,
                               NeuralNetwork &cppn,
                               Parameters &params,
                               std::vector<Genome::TempConnection> &connections,
@@ -4393,37 +4054,26 @@ namespace NEAT
         return;
     }
 
-//    double Genome::VarianceND(boost::shared_ptr<nTree> &point){
-//        if(point->children.size() == 0){
-//            return 0.0;
-//        }
-//
-//        boost::accumulators::accumulator_set<double, boost::accumulators::stats<boost::accumulators::tag::variance> > acc;
-//        for (unsigned int i = 0; i < point->children.size(); i++){
-//            acc(point->children[i]->weight);)
-//        }
-//        return boost::accumulators::variance(acc);
-//    }
     // Calculates the variance of a given Quadpoint.
     // Maybe an alternative solution would be to add this in the Quadpoint const.
-    double Genome::Variance(boost::shared_ptr<QuadPoint> &point)
+    double Genome::Variance(std::shared_ptr<QuadPoint> &point)
     {
         if (point->children.size() == 0)
         {
             return 0.0;
         }
 
-        boost::accumulators::accumulator_set<double, boost::accumulators::stats<boost::accumulators::tag::variance> > acc;
-        for (unsigned int i = 0; i < 4; i++)
-        {
-            acc(point->children[i]->weight);
-        }
+        double mean = std::accumulate(point->children.begin(), point->children.end(), 0.0, [](double sum, auto child){return sum + child->weight;}) / 4;
 
-        return boost::accumulators::variance(acc);
+        auto variance_func = [&mean](double accumulator, auto const& child) {
+            return accumulator + ((child->weight - mean)*(child->weight - mean) / (4 - 1));
+        };
+
+        return std::accumulate(point->children.begin(), point->children.end(), 0.0, variance_func);
     }
 
     // Helper method for Variance
-    void Genome::CollectValues(std::vector<double> &vals, boost::shared_ptr<QuadPoint> &point)
+    void Genome::CollectValues(std::vector<double> &vals, std::shared_ptr<QuadPoint> &point)
     {
         //In theory we shouldn't get here at all.
         if (point == NULL)
@@ -4498,10 +4148,10 @@ namespace NEAT
         }
     }
 
-#ifdef USE_BOOST_PYTHON
-    py::dict Genome::TraitMap2Dict(const std::map< std::string, Trait>& tmap) const
+#ifdef PYTHON_BINDINGS
+    pybind11::dict Genome::TraitMap2Dict(const std::map< std::string, Trait>& tmap) const
     {
-        py::dict traits;
+        pybind11::dict traits;
         for(auto tit=tmap.begin(); tit!=tmap.end(); tit++)
         {
             bool doit = false;
@@ -4529,29 +4179,29 @@ namespace NEAT
             if (doit)
             {
                 TraitType t = tit->second.value;
-                if (t.type() == typeid(int))
+                if (std::holds_alternative<int>(t))
                 {
-                    traits[tit->first] = bs::get<int>(t);
+                    traits[tit->first.c_str()] = std::get<int>(t);
                 }
-                if (t.type() == typeid(double))
+                if (std::holds_alternative<double>(t))
                 {
-                    traits[tit->first] = bs::get<double>(t);
+                    traits[tit->first.c_str()] = std::get<double>(t);
                 }
-                if (t.type() == typeid(std::string))
+                if (std::holds_alternative<std::string>(t))
                 {
-                    traits[tit->first] = bs::get<std::string>(t);
+                    traits[tit->first.c_str()] = std::get<std::string>(t);
                 }
-                if (t.type() == typeid(intsetelement))
+                if (std::holds_alternative<intsetelement>(t))
                 {
-                    traits[tit->first] = (bs::get<intsetelement>(t)).value;
+                    traits[tit->first.c_str()] = (std::get<intsetelement>(t)).value;
                 }
-                if (t.type() == typeid(floatsetelement))
+                if (std::holds_alternative<floatsetelement>(t))
                 {
-                    traits[tit->first] = (bs::get<floatsetelement>(t)).value;
+                    traits[tit->first.c_str()] = (std::get<floatsetelement>(t)).value;
                 }
-                if (t.type() == typeid(py::object))
+                if (std::holds_alternative<pybind11::object>(t))
                 {
-                    traits[tit->first] = bs::get<py::object>(t);
+                    traits[tit->first.c_str()] = std::get<pybind11::object>(t);
                 }
             }
         }
@@ -4559,15 +4209,15 @@ namespace NEAT
         return traits;
     }
 
-    py::object Genome::GetNeuronTraits() const
+    pybind11::object Genome::GetNeuronTraits() const
     {
-        py::list neurons;
+        pybind11::list neurons;
         for(auto it=m_NeuronGenes.begin(); it != m_NeuronGenes.end(); it++)
         {
 
-            py::dict traits = TraitMap2Dict((*it).m_Traits);
+            pybind11::dict traits = TraitMap2Dict((*it).m_Traits);
 
-            py::list little;
+            pybind11::list little;
             little.append( (*it).ID() );
 
             if ((*it).Type() == INPUT)
@@ -4593,15 +4243,15 @@ namespace NEAT
         return neurons;
     }
 
-    py::object Genome::GetLinkTraits(bool with_weights) const
+    pybind11::object Genome::GetLinkTraits(bool with_weights) const
     {
-        py::list links;
+        pybind11::list links;
     //            for(auto it=m_LinkGenes.begin(); it != m_LinkGenes.end(); it++)
         for(const LinkGene &linkGene: m_LinkGenes)
         {
-            py::dict traits = TraitMap2Dict(linkGene.m_Traits);
+            pybind11::dict traits = TraitMap2Dict(linkGene.m_Traits);
 
-            py::list little;
+            pybind11::list little;
             little.append(linkGene.FromNeuronID());
             little.append(linkGene.ToNeuronID());
             little.append(traits);

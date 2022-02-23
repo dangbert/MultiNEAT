@@ -73,8 +73,8 @@ private:
 
     // Neuron/Link specific data
     int m_FromNeuronID, m_ToNeuronID;
-    int m_NeuronID;
     NeuronType m_NeuronType;
+    int m_NeuronID;
 
 public:
 
@@ -132,9 +132,8 @@ public:
     }
 
     // Serialization
-    friend class boost::serialization::access;
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
+    void serialize(Archive & ar)
     {
         ar & m_ID;
         ar & m_InnovType;
@@ -233,9 +232,8 @@ public:
     void Save(FILE* a_file);
 
     // Serialization
-    friend class boost::serialization::access;
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
+    void serialize(Archive & ar)
     {
         ar & m_NextNeuronID;
         ar & m_NextInnovationNum;

@@ -33,10 +33,6 @@
 #include <vector>
 #include <sstream>
 #include <cfloat>
-#ifdef USE_BOOST_PYTHON
-#include <boost/python/object/pickle_support.hpp>
-#include <boost/python/object.hpp>
-#endif
 
 #include "Innovation.h"
 #include "Genome.h"
@@ -158,6 +154,9 @@ public:
 
     // Loads a population from a file.
     Population(const std::string &a_FileName);
+
+    // Empty constructor used for serialization
+    Population() {}
 
     ////////////////////////////
     // Destructor
@@ -322,10 +321,11 @@ public:
     unsigned int m_GensSinceLastArchiving;
     unsigned int m_QuickAddCounter;
 
+#ifdef PYTHON_BINDINGS
+
     // Serialization
-    friend class boost::serialization::access;
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
+    void serialize(Archive & ar)
     {
         ar & m_InnovationDatabase;
         ar & m_NextGenomeID;
@@ -342,7 +342,7 @@ public:
         ar & m_GensSinceMPCLastChanged;
         ar & m_Genomes;
         ar & m_GenomeArchive;
-        //ar & m_RNG;
+        ar & m_RNG;
         ar & m_Parameters;
         ar & m_Generation;
         ar & m_Species;
@@ -354,30 +354,28 @@ public:
         //ar & m_TempSpecies;
         //ar & m_BehaviorArchive;
     }
-};
 
-#ifdef USE_BOOST_PYTHON
-struct Population_pickle_suite : py::pickle_suite
-{
-    static py::object getstate(const Population& a)
+    static std::string pickle_getstate(const Population& pop)
     {
         std::ostringstream os;
-        boost::archive::text_oarchive oa(os);
-        oa << a;
-        return py::str(os.str());
+        {
+            cereal::JSONOutputArchive oa(os);
+            oa << pop;
+        }
+        return os.str();
     }
 
-    static void setstate(Population &a, py::object entries)
+    static Population pickle_setstate(std::string serialized)
     {
-        py::str s = py::extract<py::str> (entries)();
-        std::string st = py::extract<std::string>(s)();
-        std::istringstream is (st);
-
-        boost::archive::text_iarchive ia (is);
-        ia >> a;
+        std::istringstream is(serialized);
+        cereal::JSONInputArchive ia(is);
+        Population pop;
+        ia >> pop;
+        return pop;
     }
-};
+
 #endif
+};
 
 } // namespace NEAT
 

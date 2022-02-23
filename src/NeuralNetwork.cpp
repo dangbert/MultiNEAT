@@ -159,7 +159,7 @@ double tanh_derivative(double x)
 ///////////////////////////////////////
 // Neural network class implementation
 ///////////////////////////////////////
-NeuralNetwork::NeuralNetwork(bool a_Minimal)
+NeuralNetwork::NeuralNetwork(bool a_Minimal, RNG& random)
 {
     if (!a_Minimal)
     {
@@ -224,8 +224,7 @@ NeuralNetwork::NeuralNetwork(bool a_Minimal)
         // Initialize the network's weights (make them random)
         for (unsigned int i = 0; i < m_connections.size(); i++)
         {
-            m_connections[i].m_weight = ((double) rand() / (double) RAND_MAX)
-                    - 0.5;
+            m_connections[i].m_weight = random.RandFloatSigned() / 2.0;
         }
 
         // clean up other neuron data as well
@@ -604,16 +603,16 @@ void NeuralNetwork::Input(const std::vector<double>& a_Inputs)
     }
 }
 
-#ifdef USE_BOOST_PYTHON
+#ifdef PYTHON_BINDINGS
 
-void NeuralNetwork::Input_python_list(const py::list& a_Inputs)
+void NeuralNetwork::Input_python_list(const pybind11::list& a_Inputs)
 {
-    int len = py::len(a_Inputs);
+    int len = a_Inputs.size();
     std::vector<double> inp;
     inp.resize(len);
     for(int i=0; i<len; i++)
     {
-        inp[i] = py::extract<double>(a_Inputs[i]);
+        inp[i] = a_Inputs[i].cast<double>();
     }
 
     // if the number of passed inputs differs from the actual number of inputs,
@@ -626,14 +625,14 @@ void NeuralNetwork::Input_python_list(const py::list& a_Inputs)
     Input(inp);
 }
 
-void NeuralNetwork::Input_numpy(const pyndarray& a_Inputs)
+void NeuralNetwork::Input_numpy(const pybind11::array_t<double, pybind11::array::c_style | pybind11::array::forcecast>& a_Inputs)
 {
-    int len = py::len(a_Inputs);
+    int len = a_Inputs.size();
     std::vector<double> inp;
     inp.resize(len);
     for(int i=0; i<len; i++)
     {
-        inp[i] = py::extract<double>(a_Inputs[i]);
+        inp[i] = a_Inputs.at(i);
     }
 
     // if the number of passed inputs differs from the actual number of inputs,

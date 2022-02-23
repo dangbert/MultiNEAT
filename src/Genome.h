@@ -30,22 +30,9 @@
 // Description: Definition for the Genome class.
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef USE_BOOST_PYTHON
-
-#include <boost/python.hpp>
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/shared_ptr.hpp>
-
-#endif
-
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
-
-#include <boost/graph/graph_traits.hpp>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/topological_sort.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/vector.hpp>
+#include <cereal/archives/json.hpp>
 
 #include <vector>
 #include <queue>
@@ -74,11 +61,6 @@ namespace NEAT
     class PhenotypeBehavior;
 
     extern ActivationFunction GetRandomActivation(Parameters &a_Parameters, RNG &a_RNG);
-
-    namespace bs = boost;
-
-    typedef bs::adjacency_list <bs::vecS, bs::vecS, bs::directedS> Graph;
-    typedef bs::graph_traits<Graph>::vertex_descriptor Vertex;
 
     class Genome
     {
@@ -161,8 +143,8 @@ namespace NEAT
         // Used in novelty searches
         PhenotypeBehavior *m_PhenotypeBehavior;
         // A Python object behavior
-#ifdef USE_BOOST_PYTHON
-        py::object m_behavior;
+#ifdef PYTHON_BINDINGS
+        pybind11::object m_behavior;
 #endif
 
         ////////////////////////////
@@ -177,7 +159,7 @@ namespace NEAT
         // assignment operator
         Genome &operator=(const Genome &a_g);
 
-        // comparison operator (nessesary for boost::python)
+        // comparison operator (nessesary for python bindings)
         // todo: implement a better comparison technique
         bool operator==(Genome const &other) const
         {
@@ -301,10 +283,10 @@ namespace NEAT
             }
 
             // for Python-based custom constraint callbacks
-#ifdef USE_BOOST_PYTHON
-            if (a_Parameters.pyCustomConstraints.ptr() != py::object().ptr()) // is it not None?
+#ifdef PYTHON_BINDINGS
+            if (a_Parameters.pyCustomConstraints.ptr() != pybind11::object().ptr()) // is it not None?
             {
-                return py::extract<bool>(a_Parameters.pyCustomConstraints(*this));
+                return a_Parameters.pyCustomConstraints(*this).cast<bool>();
             }
 #endif
             // add more constraints here
@@ -325,17 +307,17 @@ namespace NEAT
         // Other possible methods for building a phenotype go here
         // Like CPPN/HyperNEAT stuff
         ////////////
-        void BuildHyperNEATPhenotype(NeuralNetwork &net, Substrate &subst);
+        void BuildHyperNEATPhenotype(NeuralNetwork &net, Substrate &subst, RNG& rng);
 
-#ifdef USE_BOOST_PYTHON
+#ifdef PYTHON_BINDINGS
 
-        py::dict TraitMap2Dict(const std::map< std::string, Trait>& tmap) const;
+        pybind11::dict TraitMap2Dict(const std::map< std::string, Trait>& tmap) const;
 
-        py::object GetNeuronTraits() const;
+        pybind11::object GetNeuronTraits() const;
 
-        py::object GetLinkTraits(bool with_weights=false) const;
+        pybind11::object GetLinkTraits(bool with_weights=false) const;
 
-        py::dict GetGenomeTraits()
+        pybind11::dict GetGenomeTraits()
         {
             return TraitMap2Dict(m_GenomeGene.m_Traits);
         }
@@ -526,7 +508,7 @@ namespace NEAT
             double leo;
 
 
-            std::vector<boost::shared_ptr<QuadPoint> > children;
+            std::vector<std::shared_ptr<QuadPoint> > children;
 
             QuadPoint()
             {
@@ -581,7 +563,7 @@ namespace NEAT
             int lvl;
             double width;
             double leo = 0.0;
-            std::vector<boost::shared_ptr<nTree> > children;
+            std::vector<std::shared_ptr<nTree> > children;
 
             nTree(std::vector<double> coord_in, double wdth, double level)
             {
@@ -609,7 +591,7 @@ namespace NEAT
                             child_coords.push_back(coord[sign_ix] - width/2.0);
                         }
                         children.push_back(
-                                boost::make_shared<nTree>(child_coords, width/2.0, lvl+1)
+                            std::make_shared<nTree>(child_coords, width/2.0, lvl+1)
                         );
                     }
                 }
@@ -634,40 +616,29 @@ namespace NEAT
                 return r;
             }
         };
-//        void BuildESHyperNEATPhenotypeND(NeuralNetwork &a_net, Substrate &subst, Parameters &params);
-        void BuildESHyperNEATPhenotype(NeuralNetwork &a_net, Substrate &subst, Parameters &params);
+
+        void BuildESHyperNEATPhenotype(NeuralNetwork &a_net, Substrate &subst, Parameters &params, RNG& rng);
 
         void DivideInitialize(const std::vector<double> &node,
-                              boost::shared_ptr<QuadPoint> &root,
+                              std::shared_ptr<QuadPoint> &root,
                               NeuralNetwork &cppn, Parameters &params,
                               const bool &outgoing, const double &z_coord);
 
         void PruneExpress(const std::vector<double> &node,
-                          boost::shared_ptr<QuadPoint> &root, NeuralNetwork &cppn,
+                          std::shared_ptr<QuadPoint> &root, NeuralNetwork &cppn,
                           Parameters &params, std::vector<Genome::TempConnection> &connections,
                           const bool &outgoing);
-//        void DivideInitializeND(const std::vector<double> &node,
-//                              boost::shared_ptr<nTree> &root,
-//                              NeuralNetwork &cppn, Parameters &params,
-//                              const bool &outgoing, const double &z_coord);
 
-//        void PruneExpressND(const std::vector<double> &node,
-//                          boost::shared_ptr<nTree> &root, NeuralNetwork &cppn,
-//                          Parameters &params, std::vector<Genome::TempConnection> &connections,
-//                          const bool &outgoing);
+        void CollectValues(std::vector<double> &vals, std::shared_ptr<QuadPoint> &point);
 
-
-        void CollectValues(std::vector<double> &vals, boost::shared_ptr<QuadPoint> &point);
-
-        double Variance(boost::shared_ptr<QuadPoint> &point);
+        double Variance(std::shared_ptr<QuadPoint> &point);
 
         void Clean_Net(std::vector<Connection> &connections, unsigned int input_count,
                        unsigned int output_count, unsigned int hidden_count);
 
         // Serialization
-        friend class boost::serialization::access;
         template<class Archive>
-        void serialize(Archive & ar, const unsigned int version)
+        void serialize(Archive & ar)
         {
             ar & m_ID;
             ar & m_NeuronGenes;
@@ -685,41 +656,35 @@ namespace NEAT
         std::string Serialize() const
         {
             std::ostringstream os;
-            boost::archive::text_oarchive oa(os);
-            oa << *this;
+            {
+                cereal::JSONOutputArchive oa(os);
+                oa << *this;
+            }
             return os.str();
         }
 
         void Deserialize(const std::string &text)
         {
             std::istringstream is (text);
-            boost::archive::text_iarchive ia (is);
+            cereal::JSONInputArchive ia(is);
             ia >> *this;
         }
 
-    };
-
-#ifdef USE_BOOST_PYTHON
-
-    struct Genome_pickle_suite : py::pickle_suite
-    {
-        static py::object getstate(const Genome& a)
+#ifdef PYTHON_BINDINGS
+        static std::string pickle_getstate(const Genome& a)
         {
-            std::ostringstream os;
-            boost::archive::text_oarchive oa(os);
-            oa << a;
-            return py::str (os.str());
+            return a.Serialize();
         }
 
-        static void setstate(Genome& a, py::object entries)
+        static Genome pickle_setstate(std::string a)
         {
-            py::str s = py::extract<py::str> (entries)();
-            std::string st = py::extract<std::string> (s)();
-            a.Deserialize(st);
+            Genome genome;
+            genome.Deserialize(a);
+            return genome;
         }
-    };
-
 #endif
+
+    };
 
 } // namespace NEAT
 

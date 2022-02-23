@@ -30,17 +30,6 @@
 // Description: Definitions for the Neuron and Link gene classes.
 /////////////////////////////////////////////////////////////////
 
-#ifdef USE_BOOST_PYTHON
-
-#include <boost/python.hpp>
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
-
-namespace py = boost::python;
-
-#endif
-
 #include <iostream>
 #include <vector>
 #include <map>
@@ -48,6 +37,8 @@ namespace py = boost::python;
 #include "Traits.h"
 #include "Random.h"
 #include "Utils.h"
+
+#include <cereal/cereal.hpp>
 
 
 namespace NEAT
@@ -119,19 +110,19 @@ namespace NEAT
 
                 if (it->second.type == "int")
                 {
-                    IntTraitParameters itp = bs::get<IntTraitParameters>(it->second.m_Details);
+                    IntTraitParameters itp = std::get<IntTraitParameters>(it->second.m_Details);
                     t = a_RNG.RandInt(itp.min, itp.max);
                 }
                 else if (it->second.type == "float")
                 {
-                    FloatTraitParameters itp = bs::get<FloatTraitParameters>(it->second.m_Details);
+                    FloatTraitParameters itp = std::get<FloatTraitParameters>(it->second.m_Details);
                     double x = a_RNG.RandFloat();
                     Scale(x, 0, 1, itp.min, itp.max);
                     t = x;
                 }
                 else if (it->second.type == "str")
                 {
-                    StringTraitParameters itp = bs::get<StringTraitParameters>(it->second.m_Details);
+                    StringTraitParameters itp = std::get<StringTraitParameters>(it->second.m_Details);
                     std::vector<double> probs = itp.probs;
                     if (itp.set.size() == 0)
                     {
@@ -144,7 +135,7 @@ namespace NEAT
                 }
                 else if (it->second.type == "intset")
                 {
-                    IntSetTraitParameters itp = bs::get<IntSetTraitParameters>(it->second.m_Details);
+                    IntSetTraitParameters itp = std::get<IntSetTraitParameters>(it->second.m_Details);
                     std::vector<double> probs = itp.probs;
                     if (itp.set.size() == 0)
                     {
@@ -157,7 +148,7 @@ namespace NEAT
                 }
                 else if (it->second.type == "floatset")
                 {
-                    FloatSetTraitParameters itp = bs::get<FloatSetTraitParameters>(it->second.m_Details);
+                    FloatSetTraitParameters itp = std::get<FloatSetTraitParameters>(it->second.m_Details);
                     std::vector<double> probs = itp.probs;
                     if (itp.set.size() == 0)
                     {
@@ -168,35 +159,42 @@ namespace NEAT
                     int idx = a_RNG.Roulette(probs);
                     t = itp.set[idx];
                 }
-#ifdef USE_BOOST_PYTHON
+#ifdef PYTHON_BINDINGS
                 else if (it->second.type == "pyobject")
                 {
-                    py::object itp = bs::get<py::object>(it->second.m_Details);
+                    pybind11::object itp = std::get<pybind11::object>(it->second.m_Details);
                     t = itp(); // details is a function that returns a random instance of the trait
                 }
                 else if (it->second.type == "pyclassset")
                 {
-                    py::object tup = bs::get<py::object>(it->second.m_Details);
-                    py::list classlist = py::extract<py::list>(tup[0]);
-                    py::list probs = py::extract<py::list>(tup[1]);
+                    throw std::runtime_error("Unimplemented");
+                    /*
+                    TODO
+                    I don't understand this code so just remove until we actually need it
+                    --Aart 15 02 2022
+
+                    pybind11::object tup = std::get<pybind11::object>(it->second.m_Details);
+                    pybind11::list classlist = tup[0].cast<pybind11::list>();
+                    pybind11::list probs = tup[1].cast<pybind11::list>();
                     std::vector<double> dprobs;
 
                     // get the probs
-                    int ln = py::len(probs);
-                    if ((ln == 0) || (py::len(classlist) == 0))
+                    size_t ln = probs.size();
+                    if ((ln == 0) || (classlist.size() == 0))
                     {
                         throw std::runtime_error("Empty class or probs list");
                     }
 
-                    for (int i=0; i<ln; i++)
+                    for (size_t i=0; i<ln; i++)
                     {
-                        dprobs.push_back(py::extract<double>(probs[i]));
+                        dprobs.push_back(probs[i].cast<double>());
                     }
 
                     // instantiate random class
                     int idx = a_RNG.Roulette(dprobs);
-                    py::object itp = py::extract<py::object>(classlist[idx]);
+                    pybind11::object itp = classlist[idx].cast<pybind11::object>();
                     t = itp();
+                    */ 
                 }
 #endif
 
@@ -217,17 +215,17 @@ namespace NEAT
                 TraitType mine = m_Traits[it->first].value;
                 TraitType yours = it->second.value;
 
-                if (!(mine.type() == yours.type()))
+                if (!(mine.index() == yours.index()))
                 {
                     throw std::runtime_error("Types of traits doesn't match");
                 }
 
                 // if generic python object, forward all processing to its method
-#ifdef USE_BOOST_PYTHON
-                if (mine.type() == typeid(py::object))
+#ifdef PYTHON_BINDINGS
+                if (std::holds_alternative<pybind11::object>(mine))
                 {
                     // call mating function
-                    m_Traits[it->first].value = bs::get<py::object>(mine).attr("mate")(bs::get<py::object>(yours));
+                    m_Traits[it->first].value = std::get<pybind11::object>(mine).attr("mate")(std::get<pybind11::object>(yours));
                 }
                 else
 #endif
@@ -239,33 +237,33 @@ namespace NEAT
                     else
                     {
                         // try to average
-                        if (mine.type() == typeid(int))
+                        if (std::holds_alternative<int>(mine))
                         {
-                            int m1 = bs::get<int>(mine);
-                            int m2 = bs::get<int>(yours);
+                            int m1 = std::get<int>(mine);
+                            int m2 = std::get<int>(yours);
                             m_Traits[it->first].value = (m1 + m2) / 2;
                         }
 
-                        if (mine.type() == typeid(double))
+                        if (std::holds_alternative<double>(mine))
                         {
-                            double m1 = bs::get<double>(mine);
-                            double m2 = bs::get<double>(yours);
+                            double m1 = std::get<double>(mine);
+                            double m2 = std::get<double>(yours);
                             m_Traits[it->first].value = (m1 + m2) / 2.0;
                         }
 
-                        if (mine.type() == typeid(std::string))
+                        if (std::holds_alternative<std::string>(mine))
                         {
                             // strings are always either-or
                             m_Traits[it->first].value = (a_RNG.RandFloat() < 0.5) ? mine : yours;
                         }
 
-                        if (mine.type() == typeid(intsetelement))
+                        if (std::holds_alternative<intsetelement>(mine))
                         {
                             // int sets are always either-or
                             m_Traits[it->first].value = (a_RNG.RandFloat() < 0.5) ? mine : yours;
                         }
 
-                        if (mine.type() == typeid(floatsetelement))
+                        if (std::holds_alternative<floatsetelement>(mine))
                         {
                             // float sets are always either-or
                             m_Traits[it->first].value = (a_RNG.RandFloat() < 0.5) ? mine : yours;
@@ -309,9 +307,9 @@ namespace NEAT
                 {
                     if (it->second.type == "int")
                     {
-                        IntTraitParameters itp = bs::get<IntTraitParameters>(it->second.m_Details);
+                        IntTraitParameters itp = std::get<IntTraitParameters>(it->second.m_Details);
                         // determine type of mutation - modify or replace, according to parameters
-                        int val = bs::get<int>(m_Traits[it->first].value);
+                        int val = std::get<int>(m_Traits[it->first].value);
                         int cur = val;
                         if (a_RNG.RandFloat() < itp.mut_replace_prob)
                         {
@@ -335,8 +333,8 @@ namespace NEAT
                     }
                     else if (it->second.type == "float")
                     {
-                        FloatTraitParameters itp = bs::get<FloatTraitParameters>(it->second.m_Details);
-                        double val = bs::get<double>(m_Traits[it->first].value);
+                        FloatTraitParameters itp = std::get<FloatTraitParameters>(it->second.m_Details);
+                        double val = std::get<double>(m_Traits[it->first].value);
                         double cur = val;
 
                         // determine type of mutation - modify or replace, according to parameters
@@ -363,10 +361,10 @@ namespace NEAT
                     }
                     else if (it->second.type == "str")
                     {
-                        StringTraitParameters itp = bs::get<StringTraitParameters>(it->second.m_Details);
+                        StringTraitParameters itp = std::get<StringTraitParameters>(it->second.m_Details);
                         std::vector<double> probs = itp.probs;
                         probs.resize(itp.set.size());
-                        std::string cur = bs::get<std::string>(m_Traits[it->first].value);
+                        std::string cur = std::get<std::string>(m_Traits[it->first].value);
                         
                         int idx;
                         do 
@@ -381,10 +379,10 @@ namespace NEAT
                     }
                     else if (it->second.type == "intset")
                     {
-                        IntSetTraitParameters itp = bs::get<IntSetTraitParameters>(it->second.m_Details);
+                        IntSetTraitParameters itp = std::get<IntSetTraitParameters>(it->second.m_Details);
                         std::vector<double> probs = itp.probs;
                         probs.resize(itp.set.size());
-                        intsetelement cur = bs::get<intsetelement>(m_Traits[it->first].value);
+                        intsetelement cur = std::get<intsetelement>(m_Traits[it->first].value);
 
                         int idx;
                         do 
@@ -399,10 +397,10 @@ namespace NEAT
                     }
                     else if (it->second.type == "floatset")
                     {
-                        FloatSetTraitParameters itp = bs::get<FloatSetTraitParameters>(it->second.m_Details);
+                        FloatSetTraitParameters itp = std::get<FloatSetTraitParameters>(it->second.m_Details);
                         std::vector<double> probs = itp.probs;
                         probs.resize(itp.set.size());
-                        floatsetelement cur = bs::get<floatsetelement>(m_Traits[it->first].value);
+                        floatsetelement cur = std::get<floatsetelement>(m_Traits[it->first].value);
 
                         int idx;
                         do 
@@ -415,10 +413,10 @@ namespace NEAT
                         m_Traits[it->first].value = itp.set[idx];
                         did_mutate = true;
                     }
-#ifdef USE_BOOST_PYTHON
+#ifdef PYTHON_BINDINGS
                     else if ((it->second.type == "pyobject") || (it->second.type == "pyclassset"))
                     {
-                        m_Traits[it->first].value = bs::get<py::object>(m_Traits[it->first].value).attr("mutate")();
+                        m_Traits[it->first].value = std::get<pybind11::object>(m_Traits[it->first].value).attr("mutate")();
                         did_mutate = true;
                     }
 #endif
@@ -437,7 +435,7 @@ namespace NEAT
                 const TraitType mine = m_Traits.at(it->first).value;
                 const TraitType yours = it->second.value;
 
-                if (!(mine.type() == yours.type()))
+                if (!(mine.index() == yours.index()))
                 {
                     throw std::runtime_error("Types of traits don't match");
                 }
@@ -470,20 +468,20 @@ namespace NEAT
 
                 if (doit)
                 {
-                    if (mine.type() == typeid(int))
+                    if (std::holds_alternative<int>(mine))
                     {
                         // distance between ints - calculate directly
-                        dist[it->first] = abs(bs::get<int>(mine) - bs::get<int>(yours));
+                        dist[it->first] = abs(std::get<int>(mine) - std::get<int>(yours));
                     }
-                    if (mine.type() == typeid(double))
+                    if (std::holds_alternative<double>(mine))
                     {
                         // distance between floats - calculate directly
-                        dist[it->first] = abs(bs::get<double>(mine) - bs::get<double>(yours));
+                        dist[it->first] = abs(std::get<double>(mine) - std::get<double>(yours));
                     }
-                    if (mine.type() == typeid(std::string))
+                    if (std::holds_alternative<std::string>(mine))
                     {
                         // distance between strings - matching is 0, non-matching is 1
-                        if (bs::get<std::string>(mine) == bs::get<std::string>(yours))
+                        if (std::get<std::string>(mine) == std::get<std::string>(yours))
                         {
                             dist[it->first] = 0.0;
                         }
@@ -492,21 +490,21 @@ namespace NEAT
                             dist[it->first] = 1.0;
                         }
                     }
-                    if (mine.type() == typeid(intsetelement))
+                    if (std::holds_alternative<intsetelement>(mine))
                     {
                         // distance between ints - calculate directly
-                        dist[it->first] = abs((bs::get<intsetelement>(mine)).value - (bs::get<intsetelement>(yours)).value);
+                        dist[it->first] = abs((std::get<intsetelement>(mine)).value - (std::get<intsetelement>(yours)).value);
                     }
-                    if (mine.type() == typeid(floatsetelement))
+                    if (std::holds_alternative<floatsetelement>(mine))
                     {
                         // distance between floats - calculate directly
-                        dist[it->first] = abs((bs::get<floatsetelement>(mine)).value - (bs::get<floatsetelement>(yours)).value);
+                        dist[it->first] = abs((std::get<floatsetelement>(mine)).value - (std::get<floatsetelement>(yours)).value);
                     }
-#ifdef USE_BOOST_PYTHON
-                    if (mine.type() == typeid(py::object))
+#ifdef PYTHON_BINDINGS
+                    if (std::holds_alternative<pybind11::object>(mine))
                     {
                         // distance between objects - calculate via method
-                        dist[it->first] = py::extract<double>(bs::get<py::object>(mine).attr("distance_to")(bs::get<py::object>(yours)));
+                        dist[it->first] = std::get<pybind11::object>(mine).attr("distance_to")(std::get<pybind11::object>(yours)).cast<double>();
                     }
 #endif
                 }
@@ -547,9 +545,8 @@ namespace NEAT
     public:
 
         // Serialization
-        friend class boost::serialization::access;
         template<class Archive>
-        void serialize(Archive & ar, const unsigned int version)
+        void serialize(Archive & ar)
         {
             ar & m_FromNeuronID;
             ar & m_ToNeuronID;
@@ -727,9 +724,8 @@ namespace NEAT
         ActivationFunction m_ActFunction;
 
         // Serialization
-        friend class boost::serialization::access;
         template<class Archive>
-        void serialize(Archive & ar, const unsigned int version)
+        void serialize(Archive & ar)
         {
             ar & m_ID;
             ar & m_Type;

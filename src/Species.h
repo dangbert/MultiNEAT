@@ -111,9 +111,9 @@ public:
         : m_ID(0)
         , m_BestSpecies(false)
         , m_WorstSpecies(false)
-        , m_OffspringRqd(0)
         , m_AgeGenerations(0)
         , m_AgeEvaluations(0)
+        , m_OffspringRqd(0)
         , m_BestFitness(0)
         , m_GensNoImprovement(0)
         , m_EvalsNoImprovement(0)
@@ -128,7 +128,7 @@ public:
     // assignment operator
     Species& operator=(const Species& a_g);
 
-    // comparison operator (nessesary for boost::python)
+    // comparison operator (nessesary for python bindings)
     // todo: implement a better comparison technique
     bool operator==(Species const& other) const { return m_ID == other.m_ID; }
 
@@ -224,9 +224,8 @@ public:
     void RemoveIndividual(unsigned int a_idx);
 
     // Serialization
-    friend class boost::serialization::access;
     template<class Archive>
-    void serialize(Archive & ar, const unsigned int version)
+    void serialize(Archive & ar)
     {
         ar & m_ID;
         ar & m_BestSpecies;
