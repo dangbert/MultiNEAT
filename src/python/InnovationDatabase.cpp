@@ -18,5 +18,7 @@ void export_InnovationDatabase(pybind11::module_& mod) {
         .def("Flush", &InnovationDatabase::Flush)
         .def("GetInnovationByIdx", &InnovationDatabase::GetInnovationByIdx)
         .def("Save", &InnovationDatabase::Save)
+        .def("Serialize", &InnovationDatabase::Serialize)
+        .def("Deserialize", &InnovationDatabase::Deserialize)
         ;
 }
