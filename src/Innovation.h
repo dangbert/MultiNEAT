@@ -239,6 +239,23 @@ public:
         ar & m_NextInnovationNum;
         ar & m_Innovations;
     }
+
+    std::string Serialize() const
+    {
+        std::ostringstream os;
+        {
+            cereal::JSONOutputArchive oa(os);
+            oa << *this;
+        }
+        return os.str();
+    }
+
+    void Deserialize(const std::string &text)
+    {
+        std::istringstream is (text);
+        cereal::JSONInputArchive ia(is);
+        ia >> *this;
+    }
 };
 
 
