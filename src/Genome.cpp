@@ -810,7 +810,7 @@ namespace NEAT
         BuildPhenotype(net);
 
         // convert the net to a Boost::Graph object
-        Graph graph(net.m_connections.size());
+        Graph graph(NumNeurons());
         for (long unsigned int i = 0; i < net.m_connections.size(); i++)
         {
             graph.AddEdge(net.m_connections[i].m_source_neuron_idx, net.m_connections[i].m_target_neuron_idx);
