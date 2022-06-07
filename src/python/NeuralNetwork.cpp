@@ -31,6 +31,8 @@ void export_NeuralNetwork(pybind11::module_& mod) {
             &NeuralNetwork::ActivateFast)
         .def("Activate",
             &NeuralNetwork::Activate)
+        .def("ActivateAllLayers",
+            &NeuralNetwork::ActivateAllLayers)
         .def("ActivateUseInternalBias",
             &NeuralNetwork::ActivateUseInternalBias)
         .def("ActivateLeaky",
