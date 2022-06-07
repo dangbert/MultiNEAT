@@ -1,0 +1,19 @@
+name: Python Bindings
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: dependencies
+      run: sudo apt install -y libcereal-dev libboost-all-dev python3-pybind11 pybind11-dev
+    - name: pip install
+      run: pip install .
