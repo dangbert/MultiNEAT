@@ -3331,6 +3331,10 @@ namespace NEAT
             return;
         }
 
+        if (HasLoops()) {
+            throw std::runtime_error("Cannot CalculateDepth of a Network with loops");
+        }
+
         // make a list of all output IDs
         std::vector<int> t_output_ids;
         for (unsigned int i = 0; i < NumNeurons(); i++)
