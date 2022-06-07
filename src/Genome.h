@@ -364,6 +364,11 @@ namespace NEAT
 
         void Mutate(bool t_baby_is_clone, const SearchMode a_searchMode, InnovationDatabase &a_innov_database, const Parameters &a_Parameters, RNG &a_RNG);
 
+        /**
+         * Keeps searching for mutations until constraints are not failed
+         */
+        Genome MutateWithConstraints(bool t_baby_is_clone, const SearchMode a_searchMode, InnovationDatabase &a_innov_database, const Parameters &a_Parameters, RNG &a_RNG) const;
+
         // Adds a new neuron to the genome
         // returns true if succesful
         bool Mutate_AddNeuron(InnovationDatabase &a_Innovs, const Parameters &a_Parameters, RNG &a_RNG);
@@ -424,8 +429,9 @@ namespace NEAT
         // If the a_averagemating bool is true, then the genes are averaged
         // Disjoint and excess genes are inherited from the fittest parent
         // If fitness is equal, the smaller genome is assumed to be the better one
-        Genome Mate(Genome &a_dad, bool a_averagemating, bool a_interspecies, RNG &a_RNG, Parameters &a_Parameters);
+        Genome Mate(Genome const& a_dad, bool a_averagemating, bool a_interspecies, RNG &a_RNG, Parameters const& a_Parameters) const;
 
+        Genome MateWithConstraints(Genome const& a_dad, bool a_averagemating, bool a_interspecies, RNG &a_RNG, Parameters const& a_Parameters) const;
 
         //////////
         // Utility
