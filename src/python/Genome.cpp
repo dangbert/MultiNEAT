@@ -59,6 +59,8 @@ void export_Genome(pybind11::module_& mod) {
         .def("GetGenomeTraits", &Genome::GetGenomeTraits)
 
         .def("FailsConstraints", &Genome::FailsConstraints)
+        .def("HasLoops", &Genome::HasLoops)
+        .def("HasDeadEnds", &Genome::HasDeadEnds)
 
         .def("IsEvaluated", &Genome::IsEvaluated)
         .def("SetEvaluated", &Genome::SetEvaluated)
