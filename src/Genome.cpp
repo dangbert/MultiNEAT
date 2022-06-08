@@ -1551,6 +1551,15 @@ namespace NEAT
         return (NEAT::ActivationFunction) a_RNG.Roulette(t_probs);
     }
 
+    Genome Genome::MateWithConstraints(Genome const& a_dad, bool a_averagemating, bool a_interspecies, RNG &a_RNG, Parameters const& a_Parameters) const {
+        Genome offspring;
+        do {
+            offspring = Mate(a_dad, a_averagemating, a_interspecies, a_RNG, a_Parameters);
+        } while (offspring.FailsConstraints(a_Parameters));
+
+        return offspring;
+    }
+
     void Genome::Mutate(bool t_baby_is_clone, const SearchMode a_searchMode, InnovationDatabase &a_innov_database, const Parameters &a_Parameters, RNG &a_RNG)
     {
         // We will perform roulette wheel selection to choose the type of mutation and will mutate the baby
@@ -2004,6 +2013,17 @@ namespace NEAT
         }
 
         return true;
+    }
+
+    Genome Genome::MutateWithConstraints(bool t_baby_is_clone, const SearchMode a_searchMode, InnovationDatabase &a_innov_database, const Parameters &a_Parameters, RNG &a_RNG) const
+    {
+        Genome clone;
+        do {
+            clone = Genome(*this);
+            clone.Mutate(t_baby_is_clone, a_searchMode, a_innov_database, a_Parameters, a_RNG);
+        } while (clone.FailsConstraints(a_Parameters));
+
+        return clone;
     }
 
 
@@ -2829,7 +2849,7 @@ namespace NEAT
     // This is multipoint mating - genes inherited randomly
     // Disjoint and excess genes are inherited from the fittest parent
     // If fitness is equal, the smaller genome is assumed to be the better one
-    Genome Genome::Mate(Genome &a_Dad, bool a_MateAverage, bool a_InterSpecies, RNG &a_RNG, Parameters &a_Parameters)
+    Genome Genome::Mate(Genome const& a_Dad, bool a_MateAverage, bool a_InterSpecies, RNG &a_RNG, Parameters const& a_Parameters) const
     {
         // Cannot mate with itself
         if (GetID() == a_Dad.GetID())
@@ -2849,8 +2869,8 @@ namespace NEAT
 
         // create iterators so we can step through each parents genes and set
         // them to the first gene of each parent
-        std::vector<LinkGene>::iterator t_curMom = m_LinkGenes.begin();
-        std::vector<LinkGene>::iterator t_curDad = a_Dad.m_LinkGenes.begin();
+        std::vector<LinkGene>::const_iterator t_curMom = m_LinkGenes.cbegin();
+        std::vector<LinkGene>::const_iterator t_curDad = a_Dad.m_LinkGenes.cbegin();
 
         // this will hold a copy of the gene we wish to add at each step
         LinkGene t_selectedgene(0, 0, -1, 0, false);

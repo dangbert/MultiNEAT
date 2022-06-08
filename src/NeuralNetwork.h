@@ -131,20 +131,33 @@ public:
     void InitRTRLMatrix(); // initializes the sensitivity cube for RTRL learning.
     // assumes that neuron and connection data are already initialized
 
-    void ActivateFast();          // assumes unsigned sigmoids everywhere.
-    void Activate();              // any activation functions are supported
-    void ActivateUseInternalBias(); // like Activate() but uses m_bias as well
-    void ActivateLeaky(double step); // activates in leaky integrator mode
+    /** Assumes unsigned sigmoids everywhere */
+    void ActivateFast();
+
+    /** Any activation function is supported */
+    void Activate();
+
+    /** Fully activate the NN. Infinite loop if the network has loops. Any activation function is supported. */
+    void ActivateAllLayers();
+
+    /** Like Activate() but uses m_bias as well */
+    void ActivateUseInternalBias();
+
+    /** Activates in leaky integrator mode */
+    void ActivateLeaky(double step);
 
     void RTRL_update_gradients();
     void RTRL_update_error(double a_target);
     void RTRL_update_weights();   // performs the backprop step
 
-    // Hebbian learning
+    /** Hebbian learning */
     void Adapt(Parameters& a_Parameters);
 
-    void Flush();     // clears all activations
-    void FlushCube(); // clears the sensitivity cube
+    /** Clears all activations */
+    void Flush();
+
+    /** Clears the sensitivity cube */
+    void FlushCube();
 
     void Input(const std::vector<double>& a_Inputs);
 

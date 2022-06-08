@@ -405,6 +405,14 @@ void NeuralNetwork::Activate()
 
 }
 
+void NeuralNetwork::ActivateAllLayers()
+{
+    unsigned int depth = CalculateNetworkDepth();
+    for (unsigned int i=0; i<depth; i++) {
+        Activate();
+    }
+}
+
 void NeuralNetwork::ActivateUseInternalBias()
 {
     // Loop connections. Calculate each connection's output signal.
