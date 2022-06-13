@@ -9,55 +9,47 @@
 #define BOOST_TEST_MODULE Serialization test
 #include <boost/test/included/unit_test.hpp>
 
-std::string serialize(const NEAT::Genome &g)
-{
-    std::ostringstream output_data;
-
-    {
-        cereal::JSONOutputArchive archive(output_data);
-        archive << g;
-    }
-
-    return output_data.str();
-}
-
-NEAT::Genome deserialize(const std::string &data)
-{
-    NEAT::Genome g;
-    std::istringstream input_data(data);
-    {
-        cereal::JSONInputArchive archive(input_data);
-        archive >> g;
-    }
-    return g;
-}
-
 BOOST_AUTO_TEST_CASE(serialize_genome)
 {
     NEAT::Parameters params;
+    NEAT::RNG rng;
 
-    NEAT::Genome g(42,
-            2, 1, 3,
-            NEAT::ActivationFunction::SIGNED_SIGMOID,
-            NEAT::ActivationFunction::SIGNED_SIGMOID,
-            params
-            );
+    NEAT::Genome genome(42,
+                        2, 1, 3,
+                        NEAT::ActivationFunction::SIGNED_SIGMOID,
+                        NEAT::ActivationFunction::SIGNED_SIGMOID,
+                        params);
+    std::string serialized = genome.Serialize();
 
-    const std::string serialized = serialize(g);
-    NEAT::Genome copy = deserialize(serialized);
+    NEAT::Genome genome_loaded;
+    genome_loaded.Deserialize(serialized);
 
-    BOOST_TEST(g.GetID() == copy.GetID());
-    BOOST_TEST(g.m_LinkGenes == copy.m_LinkGenes);
-    BOOST_TEST(g.m_NeuronGenes == copy.m_NeuronGenes);
-    BOOST_TEST(g.GetDepth() == copy.GetDepth());
-    BOOST_TEST(g.NumInputs() == copy.NumInputs());
-    BOOST_TEST(g.NumOutputs() == copy.NumOutputs());
-    BOOST_TEST(g.GetFitness() == copy.GetFitness());
-    BOOST_TEST(g.GetAdjFitness() == copy.GetAdjFitness());
-    BOOST_TEST(g.GetDepth() == copy.GetDepth());
-    BOOST_TEST(g.GetOffspringAmount() == copy.GetOffspringAmount());
-    BOOST_TEST(g.m_Evaluated == copy.m_Evaluated);
+    BOOST_TEST(genome == genome_loaded);
 
-    // This last test should fail, but it does not :)
-    BOOST_TEST(g.m_PhenotypeBehavior == copy.m_PhenotypeBehavior);
+    auto innov_db = NEAT::InnovationDatabase();
+
+    do
+    {
+        genome.Mutate(false, SearchMode::BLENDED, innov_db, params, rng);
+    } while (innov_db.m_Innovations.size() < 100);
+
+    serialized = genome.Serialize();
+
+    NEAT::Genome genome_loaded2;
+    genome_loaded2.Deserialize(serialized);
+
+    BOOST_TEST(genome == genome_loaded2);
+
+    // below are old tests, keeping them as extra
+    BOOST_TEST(genome.GetID() == genome_loaded2.GetID());
+    BOOST_TEST(genome.m_LinkGenes == genome_loaded2.m_LinkGenes);
+    BOOST_TEST(genome.m_NeuronGenes == genome_loaded2.m_NeuronGenes);
+    BOOST_TEST(genome.GetDepth() == genome_loaded2.GetDepth());
+    BOOST_TEST(genome.NumInputs() == genome_loaded2.NumInputs());
+    BOOST_TEST(genome.NumOutputs() == genome_loaded2.NumOutputs());
+    BOOST_TEST(genome.GetFitness() == genome_loaded2.GetFitness());
+    BOOST_TEST(genome.GetAdjFitness() == genome_loaded2.GetAdjFitness());
+    BOOST_TEST(genome.GetDepth() == genome_loaded2.GetDepth());
+    BOOST_TEST(genome.GetOffspringAmount() == genome_loaded2.GetOffspringAmount());
+    BOOST_TEST(genome.m_Evaluated == genome_loaded2.m_Evaluated);
 }
