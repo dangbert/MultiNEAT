@@ -12,6 +12,7 @@ is proven to be very effective in many domains and benchmarks against other meth
 
 NEAT was developed around 2002 by Kenneth Stanley in the University of Texas at Austin.
 
+
 ### License
 
 GNU Lesser General Public License v3.0 
@@ -26,9 +27,11 @@ GNU Lesser General Public License v3.0
 Install [Cereal](https://uscilab.github.io/cereal/)
 
 For example on ubuntu:
-```
-sudo apt install libcereal-dev
-```
+````bash
+sudo apt install libcereal-dev cmake
+# optional: (for tests)
+sudo apt install libboost-test-dev
+````
 
 If no package is available for your system, install from source.
 The package is header only, so no building required.
@@ -58,3 +61,21 @@ Installing options:
   ```
   
  These options may be combined togheter
+
+### Run Tests:
+````bash
+mkdir build && cd build
+cmake -DENABLE_TESTING=ON ..
+make
+
+# run unit tests:
+make test
+
+# view all options:
+make help
+````
+
+### See also:
+* [ci-group/MultiNEAT](https://github.com/ci-group/MultiNEAT)
+* [peter-ch/MultiNEAT](https://github.com/peter-ch/MultiNEAT)
+* [MultiNEAT/MultiNEAT](https://github.com/MultiNEAT/MultiNEAT)
