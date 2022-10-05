@@ -18,7 +18,7 @@ NEAT was developed around 2002 by Kenneth Stanley in the University of Texas at 
 GNU Lesser General Public License v3.0 
 
 ### Documentation
-* [latest docs webpage](https://dangbert.github.io/MultiNEAT/docs/html/files.html)
+* [latest docs webpage](https://dangbert.github.io/MultiNEAT/docs/html/annotated.html)
 * [archived old docs](https://web.archive.org/web/20210514235617/http://multineat.com/docs.html)
 
 Alternatively you can build the docs yourself:

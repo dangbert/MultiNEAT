@@ -73,8 +73,17 @@ License</h2>
 <p>GNU Lesser General Public License v3.0</p>
 <h2><a class="anchor" id="autotoc_md2"></a>
 Documentation</h2>
-<p><a href="http://multineat.com/docs.html">http://multineat.com/docs.html</a></p>
-<h1><a class="anchor" id="autotoc_md3"></a>
+<ul>
+<li><a href="https://dangbert.github.io/MultiNEAT/docs/html/files.html">latest docs webpage</a></li>
+<li><a href="https://web.archive.org/web/20210514235617/http://multineat.com/docs.html">archived old docs</a></li>
+</ul>
+<p>Alternatively you can build the docs yourself: </p><div class="fragment"><div class="line"># build docs:</div>
+<div class="line">sudo apt update &amp;&amp; sudo apt install doxygen graphviz</div>
+<div class="line">doxygen ./Doxyfile</div>
+<div class="line"> </div>
+<div class="line"># view docs:</div>
+<div class="line">firefox docs/html/index.html</div>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md3"></a>
 Building and installation instructions</h1>
 <h2><a class="anchor" id="autotoc_md4"></a>
 Prerequisites</h2>
@@ -110,6 +119,17 @@ Run Tests:</h2>
 <div class="line"> </div>
 <div class="line"># view all options:</div>
 <div class="line">make help</div>
+<div class="line"> </div>
+<div class="line"># build and run python unit tests as well (currently failing):</div>
+<div class="line">pushd ..</div>
+<div class="line">virtualenv .venv</div>
+<div class="line">. ../.venv/bin/activate</div>
+<div class="line">pip install -e .</div>
+<div class="line">popd</div>
+<div class="line"> </div>
+<div class="line">cmake -DGENERATE_PYTHON_BINDINGS=ON -DENABLE_TESTING=ON ..</div>
+<div class="line">make</div>
+<div class="line">make test</div>
 </div><!-- fragment --><h2><a class="anchor" id="autotoc_md8"></a>
 See also:</h2>
 <ul>
