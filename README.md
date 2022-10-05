@@ -87,6 +87,17 @@ make test
 
 # view all options:
 make help
+
+# build and run python unit tests as well (currently failing):
+pushd ..
+virtualenv .venv
+. ../.venv/bin/activate
+pip install -e .
+popd
+
+cmake -DGENERATE_PYTHON_BINDINGS=ON -DENABLE_TESTING=ON ..
+make
+make test
 ````
 
 ### See also:
