@@ -18,7 +18,21 @@ NEAT was developed around 2002 by Kenneth Stanley in the University of Texas at 
 GNU Lesser General Public License v3.0 
 
 ### Documentation
-[http://multineat.com/docs.html](http://multineat.com/docs.html)
+* [latest docs webpage](https://dangbert.github.io/MultiNEAT/docs/html/files.html)
+* [archived old docs](https://web.archive.org/web/20210514235617/http://multineat.com/docs.html)
+
+Alternatively you can build the docs yourself:
+````bash
+# build docs:
+sudo apt update && sudo apt install doxygen graphviz
+doxygen ./Doxyfile
+
+# view docs:
+firefox docs/html/index.html
+````
+
+
+<!-- [http://multineat.com/docs.html](http://multineat.com/docs.html) -->
 
 ## Building and installation instructions
 
