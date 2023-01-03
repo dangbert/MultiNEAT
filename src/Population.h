@@ -59,32 +59,24 @@ class Population
 
 private:
 
-    // The innovation database
-    InnovationDatabase m_InnovationDatabase;
+    InnovationDatabase m_InnovationDatabase; //!< The innovation database
 
-    // next genome ID
-    unsigned int m_NextGenomeID;
+    unsigned int m_NextGenomeID; //!< next genome ID
 
-    // next species ID
-    unsigned int m_NextSpeciesID;
+    unsigned int m_NextSpeciesID; //!< next species ID
 
     ////////////////////////////
     // Phased searching members
 
-    // The current mode of search
-    SearchMode m_SearchMode;
+    SearchMode m_SearchMode; //!< The current mode of search
 
-    // The current Mean Population Complexity
-    double m_CurrentMPC;
+    double m_CurrentMPC; //!< The current Mean Population Complexity
 
-    // The MPC from the previous generation (for comparison)
-    double m_OldMPC;
+    double m_OldMPC; //!< The MPC from the previous generation (for comparison)
 
-    // The base MPC (for switching between complexifying/simplifying phase)
-    double m_BaseMPC;
+    double m_BaseMPC; //!< The base MPC (for switching between complexifying/simplifying phase)
 
-    // Separates the population into species based on compatibility distance
-    void Speciate();
+    void Speciate(); //!< Separates the population into species based on compatibility distance
 
     // Adjusts each species's fitness
     void AdjustFitness();
